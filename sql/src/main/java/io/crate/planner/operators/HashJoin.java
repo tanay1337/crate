@@ -142,8 +142,7 @@ class HashJoin extends TwoInputPlan {
         // Because on distributed joins, every join is running on a slice (modulo) set of the data and so no limit/offset
         // could be applied. Limit/offset can only be applied on the whole data set after all partial rows from the
         // shards are merged
-        boolean isDistributed = leftResultDesc.hasRemainingLimitOrOffset() == false
-                                && rightResultDesc.hasRemainingLimitOrOffset() == false;
+        boolean isDistributed = false;
 
         if (joinExecutionNodes.size() == 1
             && joinExecutionNodes.equals(rightResultDesc.nodeIds())
