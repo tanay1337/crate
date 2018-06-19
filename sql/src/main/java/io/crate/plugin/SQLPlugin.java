@@ -89,6 +89,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static io.crate.settings.SharedSettings.ENTERPRISE_LICENSE_SETTING;
@@ -98,14 +99,14 @@ public class SQLPlugin extends Plugin implements ActionPlugin, MapperPlugin, Clu
 
     private final Settings settings;
     private final UserExtension userExtension;
-    private final IngestionModules ingestionModules;
+    private final List<IngestionModules> ingestionModules;
 
     @SuppressWarnings("WeakerAccess") // must be public for pluginLoader
     public SQLPlugin(Settings settings) {
         this.settings = settings;
         if (ENTERPRISE_LICENSE_SETTING.setting().get(settings)) {
             userExtension = EnterpriseLoader.loadSingle(UserExtension.class);
-            ingestionModules = EnterpriseLoader.loadSingle(IngestionModules.class);
+            ingestionModules = EnterpriseLoader.loadMultiple(IngestionModules.class);
         } else {
             userExtension = null;
             ingestionModules = null;
@@ -154,7 +155,7 @@ public class SQLPlugin extends Plugin implements ActionPlugin, MapperPlugin, Clu
 
         // Settings for ingestion implementations
         if (ingestionModules != null) {
-            settings.addAll(ingestionModules.getSettings());
+            ingestionModules.stream().forEach(m -> settings.addAll(m.getSettings()));
         }
 
         // also add CrateSettings
@@ -177,7 +178,7 @@ public class SQLPlugin extends Plugin implements ActionPlugin, MapperPlugin, Clu
             IngestionService.class);
 
         if (ingestionModules != null) {
-            serviceClasses.addAll(ingestionModules.getServiceClasses());
+            ingestionModules.stream().forEach(m -> serviceClasses.addAll(m.getServiceClasses()));
         }
 
         return ImmutableList.copyOf(serviceClasses);
@@ -216,7 +217,7 @@ public class SQLPlugin extends Plugin implements ActionPlugin, MapperPlugin, Clu
         }
 
         if (ingestionModules != null) {
-            modules.addAll(ingestionModules.getModules());
+            ingestionModules.stream().forEach(m -> modules.addAll(m.getModules()));
         }
         return modules;
     }

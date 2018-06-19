@@ -23,9 +23,13 @@
 package io.crate.plugin;
 
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentiles;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
@@ -46,5 +50,10 @@ public final class EnterpriseLoader {
             instance = it.next();
         }
         return instance;
+    }
+
+    @Nullable
+    public static <T> List<T> loadMultiple(Class<T> clazz) {
+        return Lists.newArrayList(ServiceLoader.load(clazz).iterator());
     }
 }
