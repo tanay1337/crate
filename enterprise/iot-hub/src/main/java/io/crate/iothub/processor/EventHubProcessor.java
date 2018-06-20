@@ -27,19 +27,19 @@ import io.crate.iothub.operations.EventIngestService;
 import io.crate.metadata.Functions;
 import io.crate.settings.CrateSetting;
 import io.crate.settings.SharedSettings;
+import io.crate.types.DataTypes;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
-import io.crate.types.DataTypes;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.function.Function;
 
 @Singleton
-public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
+public class EventHubProcessor extends AbstractLifecycleComponent {
 
     public static final CrateSetting<Boolean> IOT_HUB_ENABLED_SETTING = CrateSetting.of(
         Setting.boolSetting("ingestion.iot_hub.enabled", false, Setting.Property.NodeScope),
@@ -90,14 +90,14 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
     private EventIngestService eventIngestService;
 
     @Inject
-    public AzureIoTHubProcessor(Settings settings,
-                                Functions functions,
-                                SQLOperations sqlOperations,
-                                UserManager userManager,
-                                IngestionService ingestionService
+    public EventHubProcessor(Settings settings,
+                             Functions functions,
+                             SQLOperations sqlOperations,
+                             UserManager userManager,
+                             IngestionService ingestionService
     ) {
         super(settings);
-        logger = Loggers.getLogger(AzureIoTHubProcessor.class, settings);
+        logger = Loggers.getLogger(EventHubProcessor.class, settings);
         isEnabled = IOT_HUB_ENABLED_SETTING.setting().get(settings);
         isEnterprise = SharedSettings.ENTERPRISE_LICENSE_SETTING.setting().get(settings);
         connectionString = CONNECTION_STRING.setting().get(settings);
@@ -113,7 +113,7 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
         if (!isEnterprise || !isEnabled) {
             return;
         }
-
+        
         eventIngestService.initalize();
         host = new EventProcessorHost(
             EventProcessorHost.createHostName(this.nodeName()),

@@ -1,1 +1,1 @@
-io.crate.iothub.AzureIoTHubModule
+io.crate.iothub.EventHubModule

@@ -20,22 +20,22 @@ package io.crate.iothub;
 
 import com.google.common.collect.ImmutableList;
 import io.crate.ingestion.IngestionModule;
-import io.crate.iothub.processor.AzureIoTHubProcessor;
+import io.crate.iothub.processor.EventHubProcessor;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import java.util.Collection;
 
-import static io.crate.iothub.processor.AzureIoTHubProcessor.IOT_HUB_ENABLED_SETTING;
-import static io.crate.iothub.processor.AzureIoTHubProcessor.CONNECTION_STRING;
-import static io.crate.iothub.processor.AzureIoTHubProcessor.EVENT_HUB_NAME;
-import static io.crate.iothub.processor.AzureIoTHubProcessor.STORAGE_CONNECTION_STRING;
-import static io.crate.iothub.processor.AzureIoTHubProcessor.STORAGE_CONTAINER_NAME;
-import static io.crate.iothub.processor.AzureIoTHubProcessor.CONSUMER_GROUP_NAME;
+import static io.crate.iothub.processor.EventHubProcessor.IOT_HUB_ENABLED_SETTING;
+import static io.crate.iothub.processor.EventHubProcessor.CONNECTION_STRING;
+import static io.crate.iothub.processor.EventHubProcessor.EVENT_HUB_NAME;
+import static io.crate.iothub.processor.EventHubProcessor.STORAGE_CONNECTION_STRING;
+import static io.crate.iothub.processor.EventHubProcessor.STORAGE_CONTAINER_NAME;
+import static io.crate.iothub.processor.EventHubProcessor.CONSUMER_GROUP_NAME;
 
 
-public class AzureIoTHubModule extends AbstractModule implements IngestionModule {
+public class EventHubModule extends AbstractModule implements IngestionModule {
 
     @Override
     public Module getModule() {
@@ -55,11 +55,11 @@ public class AzureIoTHubModule extends AbstractModule implements IngestionModule
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> getServiceClasses() {
-        return ImmutableList.of(AzureIoTHubProcessor.class);
+        return ImmutableList.of(EventHubProcessor.class);
     }
 
     @Override
     protected void configure() {
-        bind(AzureIoTHubProcessor.class).asEagerSingleton();
+        bind(EventHubProcessor.class).asEagerSingleton();
     }
 }
