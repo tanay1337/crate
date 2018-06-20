@@ -55,6 +55,7 @@ import org.elasticsearch.common.logging.Loggers;
 import javax.annotation.Nullable;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -68,16 +69,14 @@ public class EventIngestService implements IngestRuleListener {
     private static final Logger LOGGER = Loggers.getLogger(EventIngestService.class);
     public static final String SOURCE_IDENT = "iot_hub";
     private static final Map<QualifiedName, Integer> EVENT_HUB_FIELDS_ORDER = new ImmutableMap.Builder<QualifiedName, Integer>()
-        .put(new QualifiedName("partition_id"), 0)
-        .put(new QualifiedName("offset"), 1)
-        .put(new QualifiedName("sequence_number"), 2)
+        .put(new QualifiedName("partition_context"), 0)
+        .put(new QualifiedName("event_metadata"), 0)
         .put(new QualifiedName("ts"), 3)
         .put(new QualifiedName("payload"), 4)
         .build();
     private static final List<DataType> FIELD_TYPES = Arrays.asList(
-        DataTypes.STRING,
-        DataTypes.STRING,
-        DataTypes.LONG,
+        DataTypes.OBJECT,
+        DataTypes.OBJECT,
         DataTypes.STRING,
         DataTypes.STRING);
     private static final Predicate<Row> ALWAYS_TRUE = (r) -> true;
@@ -128,16 +127,33 @@ public class EventIngestService implements IngestRuleListener {
         }
     }
 
+    private static Map<String, Object> partitionContextToMap(PartitionContext context) {
+        Map<String, Object> contextMap = new HashMap<>();
+        contextMap.put("event_hub_path", context.getEventHubPath());
+        contextMap.put("consumer_group_name", context.getConsumerGroupName());
+        contextMap.put("owner", context.getOwner());
+        contextMap.put("partition_id", context.getPartitionId());
+        return contextMap;
+    }
+
+    private static Map<String, Object> eventMetadataToMap(EventData.SystemProperties metadata) {
+        Map<String, Object> metadataMap = new HashMap<>();
+        metadataMap.put("sequence_number", metadata.getSequenceNumber());
+        metadataMap.put("partition_key", metadata.getPartitionKey());
+        metadataMap.put("publisher", metadata.getPublisher());
+        metadataMap.put("offset", metadata.getOffset());
+        metadataMap.put("enqueued_time", metadata.getEnqueuedTime().toString());
+        return metadataMap;
+    }
+
     public void doInsert(PartitionContext context, EventData data) {
         String payload = payloadToString(data.getBytes());
         if (payload == null) {
             return;
         }
-
         Object[] args = new Object[]{
-            context.getPartitionId(),
-            data.getSystemProperties().getOffset(),
-            data.getSystemProperties().getSequenceNumber(),
+            partitionContextToMap(context),
+            eventMetadataToMap(data.getSystemProperties()),
             payload};
         List<Object> argsAsList = Arrays.asList(args);
         Session session = sqlOperations.createSession(Schemas.DOC_SCHEMA_NAME, crateUser, Option.NONE, 1);
@@ -148,8 +164,8 @@ public class EventIngestService implements IngestRuleListener {
                 IngestRule ingestRule = entry.v2();
 
                 session.parse(ingestRule.getName(), "insert into " + RelationName.fromIndexName(ingestRule.getTargetTable()).fqn() +
-                                               " (\"partition_id\", \"offset\", \"sequence_number\", \"ts\", \"payload\") " +
-                                               "values (?, ?, ?, CURRENT_TIMESTAMP, ?)", FIELD_TYPES);
+                                               " (\"partition_context\", \"event_metadata\", \"ts\", \"payload\") " +
+                                               "values (?, ?, CURRENT_TIMESTAMP, ?)", FIELD_TYPES);
                 session.bind(Session.UNNAMED, ingestRule.getName(), argsAsList, null);
                 BaseResultReceiver resultReceiver = new BaseResultReceiver();
                 resultReceiver.completionFuture().exceptionally(t -> {
