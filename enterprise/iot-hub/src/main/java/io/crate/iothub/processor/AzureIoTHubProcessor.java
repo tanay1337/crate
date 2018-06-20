@@ -46,37 +46,37 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
         DataTypes.BOOLEAN);
 
     public static final CrateSetting<String> INGESTION_TABLE = CrateSetting.of(
-        new Setting<>("plugin.iot_hub.ingestionTable", "iothub_ingest",
+        new Setting<>("ingestion.iot_hub.ingestionTable", "iothub_ingest",
             Function.identity(), Setting.Property.NodeScope),
         DataTypes.STRING
     );
 
     public static final CrateSetting<String> CONNECTION_STRING = CrateSetting.of(
-        new Setting<>("plugin.iot_hub.connectionString", "",
+        new Setting<>("ingestion.iot_hub.connectionString", "",
             Function.identity(), Setting.Property.NodeScope),
         DataTypes.STRING
     );
 
     public static final CrateSetting<String> STORAGE_CONTAINER_NAME = CrateSetting.of(
-        new Setting<>("plugin.iot_hub.storageContainerName", "",
+        new Setting<>("ingestion.iot_hub.storageContainerName", "",
             Function.identity(), Setting.Property.NodeScope),
         DataTypes.STRING
     );
 
     public static final CrateSetting<String> STORAGE_CONNECTION_STRING = CrateSetting.of(
-        new Setting<>("plugin.iot_hub.storageConnectionString", "",
+        new Setting<>("ingestion.iot_hub.storageConnectionString", "",
             Function.identity(), Setting.Property.NodeScope),
         DataTypes.STRING
     );
 
     public static final CrateSetting<String> EVENT_HUB_NAME = CrateSetting.of(
-        new Setting<>("plugin.iot_hub.eventHubName", "",
+        new Setting<>("ingestion.iot_hub.eventHubName", "",
             Function.identity(), Setting.Property.NodeScope),
         DataTypes.STRING
     );
 
     public static final CrateSetting<String> CONSUMER_GROUP_NAME = CrateSetting.of(
-        new Setting<>("plugin.iot_hub.consumerGroupName", "$Default",
+        new Setting<>("ingestion.iot_hub.consumerGroupName", "$Default",
             Function.identity(), Setting.Property.NodeScope),
         DataTypes.STRING
     );
