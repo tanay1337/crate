@@ -25,16 +25,14 @@ import io.crate.iothub.operations.EventIngestService;
 
 public class EventProcessorFactory implements IEventProcessorFactory {
 
-    private final String ingestionTable;
     private final EventIngestService eventIngestService;
 
-    public EventProcessorFactory(String ingestionTable, EventIngestService ingestService) {
-        this.ingestionTable = ingestionTable;
+    public EventProcessorFactory(EventIngestService ingestService) {
         this.eventIngestService = ingestService;
     }
 
     @Override
     public IEventProcessor createEventProcessor(PartitionContext context) throws Exception {
-        return new EventProcessor(ingestionTable, eventIngestService);
+        return new EventProcessor(eventIngestService);
     }
 }

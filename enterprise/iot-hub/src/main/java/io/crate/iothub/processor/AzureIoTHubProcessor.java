@@ -45,12 +45,6 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
         Setting.boolSetting("ingestion.iot_hub.enabled", false, Setting.Property.NodeScope),
         DataTypes.BOOLEAN);
 
-    public static final CrateSetting<String> INGESTION_TABLE = CrateSetting.of(
-        new Setting<>("ingestion.iot_hub.ingestionTable", "iothub_ingest",
-            Function.identity(), Setting.Property.NodeScope),
-        DataTypes.STRING
-    );
-
     public static final CrateSetting<String> CONNECTION_STRING = CrateSetting.of(
         new Setting<>("ingestion.iot_hub.connectionString", "",
             Function.identity(), Setting.Property.NodeScope),
@@ -82,7 +76,6 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
     );
 
     private final Logger logger;
-    private final String ingestionTable;
     private final String connectionString;
     private final String storageContainerName;
     private final String storageConnectionString;
@@ -107,7 +100,6 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
         logger = Loggers.getLogger(AzureIoTHubProcessor.class, settings);
         isEnabled = IOT_HUB_ENABLED_SETTING.setting().get(settings);
         isEnterprise = SharedSettings.ENTERPRISE_LICENSE_SETTING.setting().get(settings);
-        ingestionTable = INGESTION_TABLE.setting().get(settings);
         connectionString = CONNECTION_STRING.setting().get(settings);
         storageContainerName = STORAGE_CONTAINER_NAME.setting().get(settings);
         storageConnectionString = STORAGE_CONNECTION_STRING.setting().get(settings);
@@ -122,6 +114,7 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
             return;
         }
 
+        eventIngestService.initalize();
         host = new EventProcessorHost(
             EventProcessorHost.createHostName(this.nodeName()),
             this.eventHubName,
@@ -136,7 +129,7 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
         options.setExceptionNotification(new ErrorNotificationHandler());
 
         try {
-            EventProcessorFactory factory = new EventProcessorFactory(ingestionTable, eventIngestService);
+            EventProcessorFactory factory = new EventProcessorFactory(eventIngestService);
             host.registerEventProcessorFactory(factory, options)
                 .whenComplete((unused, e) -> {
                     if (e != null) {

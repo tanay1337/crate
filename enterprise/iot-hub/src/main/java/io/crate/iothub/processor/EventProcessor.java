@@ -29,11 +29,9 @@ import org.elasticsearch.common.logging.Loggers;
 public class EventProcessor implements IEventProcessor {
     private int checkpointBatchingCount = 0;
 
-    private final String ingestionTable;
     private final EventIngestService ingestService;
 
-    public EventProcessor(String ingestionTable, EventIngestService ingestService) {
-        this.ingestionTable = ingestionTable;
+    public EventProcessor(EventIngestService ingestService) {
         this.ingestService = ingestService;
     }
 
@@ -59,7 +57,7 @@ public class EventProcessor implements IEventProcessor {
         int eventCount = 0;
         for (EventData data : events) {
             try {
-                ingestService.doInsert(context, data, ingestionTable);
+                ingestService.doInsert(context, data);
                 eventCount++;
 
                 // Checkpointing persists the current position in the event stream for this partition and means that the next
