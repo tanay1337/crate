@@ -19,14 +19,13 @@
 package io.crate.iothub;
 
 import com.google.common.collect.ImmutableList;
-import io.crate.ingestion.IngestionModules;
+import io.crate.ingestion.IngestionModule;
 import io.crate.iothub.processor.AzureIoTHubProcessor;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import java.util.Collection;
-import java.util.Collections;
 
 import static io.crate.iothub.processor.AzureIoTHubProcessor.IOT_HUB_ENABLED_SETTING;
 import static io.crate.iothub.processor.AzureIoTHubProcessor.INGESTION_TABLE;
@@ -37,11 +36,11 @@ import static io.crate.iothub.processor.AzureIoTHubProcessor.STORAGE_CONTAINER_N
 import static io.crate.iothub.processor.AzureIoTHubProcessor.CONSUMER_GROUP_NAME;
 
 
-public class AzureIoTHubModule extends AbstractModule implements IngestionModules {
+public class AzureIoTHubModule extends AbstractModule implements IngestionModule {
 
     @Override
-    public Collection<Module> getModules() {
-        return Collections.singletonList(this);
+    public Module getModule() {
+        return this;
     }
 
     @Override

@@ -19,7 +19,7 @@
 package io.crate.mqtt;
 
 import com.google.common.collect.ImmutableList;
-import io.crate.ingestion.IngestionModules;
+import io.crate.ingestion.IngestionModule;
 import io.crate.mqtt.netty.Netty4MqttServerTransport;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -27,14 +27,13 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 
 import java.util.Collection;
-import java.util.Collections;
 
 import static io.crate.mqtt.netty.Netty4MqttServerTransport.MQTT_ENABLED_SETTING;
 import static io.crate.mqtt.netty.Netty4MqttServerTransport.MQTT_PORT_SETTING;
 import static io.crate.mqtt.netty.Netty4MqttServerTransport.MQTT_TIMEOUT_SETTING;
 import static io.crate.mqtt.netty.Netty4MqttServerTransport.SSL_MQTT_ENABLED;
 
-public class MqttModule extends AbstractModule implements IngestionModules {
+public class MqttModule extends AbstractModule implements IngestionModule {
 
     @Override
     protected void configure() {
@@ -47,8 +46,8 @@ public class MqttModule extends AbstractModule implements IngestionModules {
     }
 
     @Override
-    public Collection<Module> getModules() {
-        return Collections.singletonList(this);
+    public Module getModule() {
+        return this;
     }
 
     @Override

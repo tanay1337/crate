@@ -44,7 +44,7 @@ import io.crate.expression.reference.sys.cluster.SysClusterExpressionModule;
 import io.crate.expression.scalar.ScalarFunctionModule;
 import io.crate.expression.tablefunctions.TableFunctionModule;
 import io.crate.expression.udf.UserDefinedFunctionsMetaData;
-import io.crate.ingestion.IngestionModules;
+import io.crate.ingestion.IngestionModule;
 import io.crate.ingestion.IngestionService;
 import io.crate.lucene.ArrayMapperService;
 import io.crate.metadata.MetaDataModule;
@@ -98,14 +98,14 @@ public class SQLPlugin extends Plugin implements ActionPlugin, MapperPlugin, Clu
 
     private final Settings settings;
     private final UserExtension userExtension;
-    private final List<IngestionModules> ingestionModules;
+    private final List<IngestionModule> ingestionModules;
 
     @SuppressWarnings("WeakerAccess") // must be public for pluginLoader
     public SQLPlugin(Settings settings) {
         this.settings = settings;
         if (ENTERPRISE_LICENSE_SETTING.setting().get(settings)) {
             userExtension = EnterpriseLoader.loadSingle(UserExtension.class);
-            ingestionModules = EnterpriseLoader.loadMultiple(IngestionModules.class);
+            ingestionModules = EnterpriseLoader.loadMultiple(IngestionModule.class);
         } else {
             userExtension = null;
             ingestionModules = null;
@@ -216,7 +216,7 @@ public class SQLPlugin extends Plugin implements ActionPlugin, MapperPlugin, Clu
         }
 
         if (ingestionModules != null) {
-            ingestionModules.stream().forEach(m -> modules.addAll(m.getModules()));
+            ingestionModules.stream().forEach(m -> modules.add(m.getModule()));
         }
         return modules;
     }
