@@ -25,9 +25,7 @@ package io.crate.plugin;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentiles;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ServiceConfigurationError;
