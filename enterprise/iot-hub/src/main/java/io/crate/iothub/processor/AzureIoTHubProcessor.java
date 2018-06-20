@@ -26,6 +26,7 @@ import io.crate.ingestion.IngestionService;
 import io.crate.iothub.operations.EventIngestService;
 import io.crate.metadata.Functions;
 import io.crate.settings.CrateSetting;
+import io.crate.settings.SharedSettings;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -39,6 +40,10 @@ import java.util.function.Function;
 
 @Singleton
 public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
+
+    public static final CrateSetting<Boolean> IOT_HUB_ENABLED_SETTING = CrateSetting.of(
+        Setting.boolSetting("ingestion.iot_hub.enabled", false, Setting.Property.NodeScope),
+        DataTypes.BOOLEAN);
 
     public static final CrateSetting<String> INGESTION_TABLE = CrateSetting.of(
         new Setting<>("plugin.iot_hub.ingestionTable", "iothub_ingest",
@@ -84,6 +89,9 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
     private final String eventHubName;
     private final String consumerGroupName;
 
+    private final boolean isEnabled;
+    private final boolean isEnterprise;
+
     private EventProcessorHost host;
 
     private EventIngestService eventIngestService;
@@ -97,6 +105,8 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
     ) {
         super(settings);
         logger = Loggers.getLogger(AzureIoTHubProcessor.class, settings);
+        isEnabled = IOT_HUB_ENABLED_SETTING.setting().get(settings);
+        isEnterprise = SharedSettings.ENTERPRISE_LICENSE_SETTING.setting().get(settings);
         ingestionTable = INGESTION_TABLE.setting().get(settings);
         connectionString = CONNECTION_STRING.setting().get(settings);
         storageContainerName = STORAGE_CONTAINER_NAME.setting().get(settings);
@@ -108,6 +118,9 @@ public class AzureIoTHubProcessor extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
+        if (!isEnterprise || !isEnabled) {
+            return;
+        }
 
         host = new EventProcessorHost(
             EventProcessorHost.createHostName(this.nodeName()),

@@ -28,6 +28,14 @@ import org.elasticsearch.common.settings.Setting;
 import java.util.Collection;
 import java.util.Collections;
 
+import static io.crate.iothub.processor.AzureIoTHubProcessor.IOT_HUB_ENABLED_SETTING;
+import static io.crate.iothub.processor.AzureIoTHubProcessor.INGESTION_TABLE;
+import static io.crate.iothub.processor.AzureIoTHubProcessor.CONNECTION_STRING;
+import static io.crate.iothub.processor.AzureIoTHubProcessor.EVENT_HUB_NAME;
+import static io.crate.iothub.processor.AzureIoTHubProcessor.STORAGE_CONNECTION_STRING;
+import static io.crate.iothub.processor.AzureIoTHubProcessor.STORAGE_CONTAINER_NAME;
+import static io.crate.iothub.processor.AzureIoTHubProcessor.CONSUMER_GROUP_NAME;
+
 
 public class AzureIoTHubModule extends AbstractModule implements IngestionModules {
 
@@ -39,12 +47,13 @@ public class AzureIoTHubModule extends AbstractModule implements IngestionModule
     @Override
     public Collection<Setting<?>> getSettings() {
         return ImmutableList.of(
-            AzureIoTHubProcessor.INGESTION_TABLE.setting(),
-            AzureIoTHubProcessor.CONNECTION_STRING.setting(),
-            AzureIoTHubProcessor.EVENT_HUB_NAME.setting(),
-            AzureIoTHubProcessor.STORAGE_CONNECTION_STRING.setting(),
-            AzureIoTHubProcessor.STORAGE_CONTAINER_NAME.setting(),
-            AzureIoTHubProcessor.CONSUMER_GROUP_NAME.setting());
+            IOT_HUB_ENABLED_SETTING.setting(),
+            INGESTION_TABLE.setting(),
+            CONNECTION_STRING.setting(),
+            EVENT_HUB_NAME.setting(),
+            STORAGE_CONNECTION_STRING.setting(),
+            STORAGE_CONTAINER_NAME.setting(),
+            CONSUMER_GROUP_NAME.setting());
     }
 
     @Override
