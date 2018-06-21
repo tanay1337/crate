@@ -109,8 +109,8 @@ public class EventHubProcessor extends AbstractLifecycleComponent {
         if (!isEnterprise || !isEnabled) {
             return;
         }
-        
-        eventIngestService.initalize();
+
+        eventIngestService.initialize();
         host = new EventProcessorHost(
             EventProcessorHost.createHostName(this.nodeName()),
             this.eventHubName,
@@ -148,6 +148,5 @@ public class EventHubProcessor extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {
-
     }
 }

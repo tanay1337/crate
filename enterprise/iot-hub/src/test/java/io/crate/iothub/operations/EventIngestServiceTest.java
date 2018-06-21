@@ -24,19 +24,18 @@ public class EventIngestServiceTest extends CrateUnitTest {
     }
 
     @Test
-    public void initialize_givenServiceInitializedTwice_thenThrowsIllegalStateException() throws Exception {
-        subjectUnderTest.initalize();
+    public void initialize_givenServiceInitializedTwice_thenThrowsIllegalStateException() {
+        subjectUnderTest.initialize();
 
         expectedException.expect(IllegalStateException.class);
         expectedException.expectMessage("IoT Hub Ingestion Service already initialized.");
-        subjectUnderTest.initalize();
+        subjectUnderTest.initialize();
     }
 
     @Test
-    public void onInsert_givenDoInsertOnUninitializedService_thenThrowsIllegalStateException() throws Exception {
+    public void onInsert_givenDoInsertOnUninitializedService_thenThrowsIllegalStateException() {
         expectedException.expect(IllegalStateException.class);
         expectedException.expectMessage("IoT Hub Ingestion Service has not been initialized");
         subjectUnderTest.doInsert(mock(PartitionContext.class), mock(EventData.class));
     }
-
 }

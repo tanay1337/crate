@@ -109,7 +109,7 @@ public class EventIngestService implements IngestRuleListener {
         this.crateUser = userLookup.findUser("crate");
     }
 
-    public void initalize() {
+    public void initialize() {
         if (isInitialized) {
             throw new IllegalStateException("IoT Hub Ingestion Service already initialized.");
         }
@@ -126,12 +126,16 @@ public class EventIngestService implements IngestRuleListener {
         if (payload == null) {
             return;
         }
+
         Object[] args = new Object[]{
             partitionContextToMap(context),
             eventMetadataToMap(data.getSystemProperties()),
             payload};
+
         List<Object> argsAsList = Arrays.asList(args);
+
         Session session = sqlOperations.createSession(Schemas.DOC_SCHEMA_NAME, crateUser, Option.NONE, 1);
+
         AtomicBoolean messageMatchedRule = new AtomicBoolean(false);
         predicateAndIngestRulesReference.get().stream().forEach(entry -> {
             if (entry.v1().test(new RowN(args))) {
@@ -168,7 +172,7 @@ public class EventIngestService implements IngestRuleListener {
     public void applyRules(Set<IngestRule> rules) {
         Set<Tuple<Predicate<Row>, IngestRule>> newRules = new HashSet<>(rules.size());
         rules.stream().forEach(rule -> {
-            if (rule.getCondition().trim().isEmpty() == false) {
+            if (!rule.getCondition().trim().isEmpty()) {
                 Symbol conditionSymbol = expressionAnalyzer.convert(SqlParser.createExpression(rule.getCondition()),
                     expressionAnalysisContext);
                 Predicate<Row> conditionPredicate = RowFilter.create(inputFactory, conditionSymbol);
