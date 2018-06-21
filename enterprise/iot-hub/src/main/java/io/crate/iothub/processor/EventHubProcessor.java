@@ -46,26 +46,22 @@ public class EventHubProcessor extends AbstractLifecycleComponent {
         DataTypes.BOOLEAN);
 
     public static final CrateSetting<String> CONNECTION_STRING = CrateSetting.of(
-        new Setting<>("ingestion.iot_hub.connectionString", "",
-            Function.identity(), Setting.Property.NodeScope),
+        Setting.simpleString("ingestion.iot_hub.connectionString", Setting.Property.NodeScope),
         DataTypes.STRING
     );
 
     public static final CrateSetting<String> STORAGE_CONTAINER_NAME = CrateSetting.of(
-        new Setting<>("ingestion.iot_hub.storageContainerName", "",
-            Function.identity(), Setting.Property.NodeScope),
+        Setting.simpleString("ingestion.iot_hub.storageContainerName", Setting.Property.NodeScope),
         DataTypes.STRING
     );
 
     public static final CrateSetting<String> STORAGE_CONNECTION_STRING = CrateSetting.of(
-        new Setting<>("ingestion.iot_hub.storageConnectionString", "",
-            Function.identity(), Setting.Property.NodeScope),
+        Setting.simpleString("ingestion.iot_hub.storageConnectionString", Setting.Property.NodeScope),
         DataTypes.STRING
     );
 
     public static final CrateSetting<String> EVENT_HUB_NAME = CrateSetting.of(
-        new Setting<>("ingestion.iot_hub.eventHubName", "",
-            Function.identity(), Setting.Property.NodeScope),
+        Setting.simpleString("ingestion.iot_hub.eventHubName", Setting.Property.NodeScope),
         DataTypes.STRING
     );
 

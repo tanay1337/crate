@@ -19,6 +19,7 @@
 package io.crate.iothub.processor;
 
 import com.microsoft.azure.eventhubs.EventData;
+import com.microsoft.azure.eventhubs.ReceiverDisconnectedException;
 import com.microsoft.azure.eventprocessorhost.CloseReason;
 import com.microsoft.azure.eventprocessorhost.IEventProcessor;
 import com.microsoft.azure.eventprocessorhost.PartitionContext;
@@ -38,27 +39,32 @@ public class EventProcessor implements IEventProcessor {
     private static final Logger LOGGER = Loggers.getLogger(EventProcessor.class);
 
     @Override
-    public void onOpen(PartitionContext context) throws Exception {
-        LOGGER.info("SAMPLE: Partition " + context.getPartitionId() + " is opening");
+    public void onOpen(PartitionContext context) {
+        LOGGER.info("Partition {} is opening on {} (consumer group: {})", context.getPartitionId(),
+            context.getEventHubPath(), context.getConsumerGroupName());
     }
 
     @Override
-    public void onClose(PartitionContext context, CloseReason reason) throws Exception {
-        LOGGER.info("SAMPLE: Partition " + context.getPartitionId() + " is closing for reason " + reason.toString());
+    public void onClose(PartitionContext context, CloseReason reason) {
+        LOGGER.info("Partition {} is closing on {} (consumer group: {}) for reason: {}", context.getPartitionId(),
+            context.getEventHubPath(), context.getConsumerGroupName(), reason.toString());
     }
 
     @Override
     public void onError(PartitionContext context, Throwable error) {
-        LOGGER.error("SAMPLE: Partition " + context.getPartitionId() + " onError: " + error.toString());
+        if (error instanceof ReceiverDisconnectedException) {
+            LOGGER.info("Partition {} on {} (consumer group: {}): {}", context.getPartitionId(),
+                context.getEventHubPath(), context.getConsumerGroupName(), error.getLocalizedMessage());
+        } else {
+            LOGGER.error(error);
+        }
     }
 
     @Override
-    public void onEvents(PartitionContext context, Iterable<EventData> events) throws Exception {
-        int eventCount = 0;
+    public void onEvents(PartitionContext context, Iterable<EventData> events) {
         for (EventData data : events) {
             try {
                 ingestService.doInsert(context, data);
-                eventCount++;
 
                 // Checkpointing persists the current position in the event stream for this partition and means that the next
                 // time any host opens an event processor on this event hub+consumer group+partition combination, it will start
