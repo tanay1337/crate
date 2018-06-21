@@ -117,35 +117,6 @@ public class EventIngestService implements IngestRuleListener {
         isInitialized = true;
     }
 
-    @Nullable
-    private static String payloadToString(byte[] payload) {
-        try {
-            return new String(payload, "UTF8");
-        } catch (UnsupportedEncodingException e) {
-            LOGGER.error("Unsupported Encoding!!! Oh no.");
-            return null;
-        }
-    }
-
-    private static Map<String, Object> partitionContextToMap(PartitionContext context) {
-        Map<String, Object> contextMap = new HashMap<>();
-        contextMap.put("event_hub_path", context.getEventHubPath());
-        contextMap.put("consumer_group_name", context.getConsumerGroupName());
-        contextMap.put("owner", context.getOwner());
-        contextMap.put("partition_id", context.getPartitionId());
-        return contextMap;
-    }
-
-    private static Map<String, Object> eventMetadataToMap(EventData.SystemProperties metadata) {
-        Map<String, Object> metadataMap = new HashMap<>();
-        metadataMap.put("sequence_number", metadata.getSequenceNumber());
-        metadataMap.put("partition_key", metadata.getPartitionKey());
-        metadataMap.put("publisher", metadata.getPublisher());
-        metadataMap.put("offset", metadata.getOffset());
-        metadataMap.put("enqueued_time", metadata.getEnqueuedTime().toString());
-        return metadataMap;
-    }
-
     public void doInsert(PartitionContext context, EventData data) {
         if (!isInitialized) {
             throw new IllegalStateException("IoT Hub Ingestion Service has not been initialized.");
@@ -208,4 +179,34 @@ public class EventIngestService implements IngestRuleListener {
         });
         predicateAndIngestRulesReference.set(newRules);
     }
+
+    @Nullable
+    private static String payloadToString(byte[] payload) {
+        try {
+            return new String(payload, "UTF8");
+        } catch (UnsupportedEncodingException e) {
+            LOGGER.error("Unsupported Encoding!!! Oh no.");
+            return null;
+        }
+    }
+
+    private static Map<String, Object> partitionContextToMap(PartitionContext context) {
+        Map<String, Object> contextMap = new HashMap<>();
+        contextMap.put("event_hub_path", context.getEventHubPath());
+        contextMap.put("consumer_group_name", context.getConsumerGroupName());
+        contextMap.put("owner", context.getOwner());
+        contextMap.put("partition_id", context.getPartitionId());
+        return contextMap;
+    }
+
+    private static Map<String, Object> eventMetadataToMap(EventData.SystemProperties metadata) {
+        Map<String, Object> metadataMap = new HashMap<>();
+        metadataMap.put("sequence_number", metadata.getSequenceNumber());
+        metadataMap.put("partition_key", metadata.getPartitionKey());
+        metadataMap.put("publisher", metadata.getPublisher());
+        metadataMap.put("offset", metadata.getOffset());
+        metadataMap.put("enqueued_time", metadata.getEnqueuedTime().toString());
+        return metadataMap;
+    }
+
 }
