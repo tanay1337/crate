@@ -147,6 +147,10 @@ public class EventIngestService implements IngestRuleListener {
     }
 
     public void doInsert(PartitionContext context, EventData data) {
+        if (!isInitialized) {
+            throw new IllegalStateException("IoT Hub Ingestion Service has not been initialized.");
+        }
+
         String payload = payloadToString(data.getBytes());
         if (payload == null) {
             return;
