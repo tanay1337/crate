@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * A {@link DownstreamRXTask} which receives paged buckets from upstreams
@@ -167,6 +168,9 @@ public class DistResultRXTask extends AbstractTask implements DownstreamRXTask, 
             try {
                 executor.execute(() -> consumer.accept(batchPagingIterator, error));
             } catch (EsRejectedExecutionException | RejectedExecutionException e) {
+                for (Runnable runnable: ((ThreadPoolExecutor) executor).getQueue()) {
+                    System.out.println(runnable);
+                }
                 consumer.accept(null, e);
                 throwable = e;
             }
@@ -174,6 +178,9 @@ public class DistResultRXTask extends AbstractTask implements DownstreamRXTask, 
             try {
                 executor.execute(() -> batchPagingIterator.completeLoad(error));
             } catch (EsRejectedExecutionException | RejectedExecutionException e) {
+                for (Runnable runnable: ((ThreadPoolExecutor) executor).getQueue()) {
+                    System.out.println(runnable);
+                }
                 batchPagingIterator.completeLoad(e);
                 throwable = e;
             }
