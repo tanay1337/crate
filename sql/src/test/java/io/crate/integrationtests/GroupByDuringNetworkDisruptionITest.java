@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3, maxNumDataNodes = 3, transportClientRatio = 0, numClientNodes = 0)
@@ -56,7 +55,7 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
     private static final Logger LOGGER =Loggers.getLogger(GroupByDuringNetworkDisruptionITest.class);
     private ExecutorService executorService;
     private AtomicBoolean stopThreads;
-    private int numThreads = 30;
+    private int numThreads = 50;
 
     @Before
     public void setupExecutor() throws Exception {
@@ -83,7 +82,7 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
         execute("refresh table t1");
 
 
-        int spawnLimit = 50_000;
+        int spawnLimit = 20_000;
         AtomicInteger requestsMade = new AtomicInteger(0);
         final List<ActionFuture<SQLResponse>> responses = new ArrayList<>();
         for (int i = 0; i < numThreads; i++) {
@@ -96,12 +95,11 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
                 }
             });
         }
-        assertBusy(() -> assertThat(requestsMade.get(), greaterThanOrEqualTo(spawnLimit)));
         executorService.shutdown();
-        executorService.awaitTermination(5, TimeUnit.SECONDS);
+        executorService.awaitTermination(50, TimeUnit.SECONDS);
         for (ActionFuture<SQLResponse> resp : responses) {
             try {
-                resp.get(5, TimeUnit.SECONDS);
+                resp.get(50, TimeUnit.SECONDS);
             } catch (Exception e) {
                 String message = Exceptions.userFriendlyMessageInclNested(e);
                 if (message.contains("EsRejectedExecutionException")) {
