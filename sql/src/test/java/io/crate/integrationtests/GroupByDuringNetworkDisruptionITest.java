@@ -22,6 +22,7 @@
 
 package io.crate.integrationtests;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableList;
 import io.crate.testing.SQLResponse;
 import org.apache.logging.log4j.Logger;
@@ -68,6 +69,7 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
     }
 
     @Test
+    @Repeat (iterations = 100)
     public void testQueriesWhileNetworkDisruption() throws Exception {
         execute("create table t1 (x int) clustered into 3 shards with (number_of_replicas = 0)");
         Object[][] bulkArgs = IntStream.concat(
@@ -82,24 +84,21 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
         runConcurrentGroupBy(responses);
 
         LOGGER.info("Waiting for queries to spawn");
-        waitForMoreSpawnedQueries(responses, 0, 5);
-        int spawnedPreDisrupt;
-        synchronized (responses) {
-            spawnedPreDisrupt = responses.size();
-        }
+        waitForMoreSpawnedQueries(responses, 20);
         LOGGER.info("Adding NetworkDisruption");
         disruptNodes();
 
         LOGGER.info("Waiting for queries to spawn (after disrupt)");
-        waitForMoreSpawnedQueries(responses, spawnedPreDisrupt, 20);
+        waitForMoreSpawnedQueries(responses, 20);
         LOGGER.info("Waiting for results");
         waitOnResults(responses);
+        stopThreads.set(true);
 
         /*
         LOGGER.info("Clearing disruption");
         clearDisruptionScheme();
         LOGGER.info("Waiting for queries to spawn (after disruption clear)");
-        waitForMoreSpawnedQueries(responses, spawnedPreDisrupt, 20);
+        waitForMoreSpawnedQueries(responses, 20);
         LOGGER.info("Stopping threads");
         stopThreads.set(true);
         executorService.shutdown();
@@ -135,14 +134,17 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
     }
 
     private static void waitForMoreSpawnedQueries(List<ActionFuture<SQLResponse>> responses,
-                                                  int spawnedPreDisrupt,
                                                   int numQueries) throws Exception {
+        int initialSize;
+        synchronized (responses) {
+            initialSize = responses.size();
+        }
         assertBusy(() -> {
             int size;
             synchronized (responses) {
                 size = responses.size();
             }
-            assertThat(size, Matchers.greaterThanOrEqualTo(spawnedPreDisrupt + numQueries));
+            assertThat(size, Matchers.greaterThanOrEqualTo(initialSize + numQueries));
         });
     }
 

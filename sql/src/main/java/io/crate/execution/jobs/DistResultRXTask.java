@@ -168,11 +168,14 @@ public class DistResultRXTask extends AbstractTask implements DownstreamRXTask, 
             try {
                 executor.execute(() -> consumer.accept(batchPagingIterator, error));
             } catch (EsRejectedExecutionException | RejectedExecutionException e) {
+                consumer.accept(batchPagingIterator, error);
                 for (Runnable runnable: ((ThreadPoolExecutor) executor).getQueue()) {
                     System.out.println(runnable);
                 }
+                /*
                 consumer.accept(null, e);
                 throwable = e;
+                */
             }
         } else {
             try {
@@ -181,8 +184,8 @@ public class DistResultRXTask extends AbstractTask implements DownstreamRXTask, 
                 for (Runnable runnable: ((ThreadPoolExecutor) executor).getQueue()) {
                     System.out.println(runnable);
                 }
-                batchPagingIterator.completeLoad(e);
-                throwable = e;
+                batchPagingIterator.completeLoad(error);
+                //throwable = e;
             }
         }
         if (throwable != null) {

@@ -225,8 +225,11 @@ public class DistributingConsumer implements RowConsumer {
                         try {
                             responseExecutor.execute(() -> consumeIt(it));
                         } catch (EsRejectedExecutionException e) {
+                            consumeIt(it);
+                            /*
                             failure = e;
                             forwardFailure(it, failure);
+                            */
                         }
                     }
                 } else {
@@ -256,5 +259,24 @@ public class DistributingConsumer implements RowConsumer {
         boolean needsMoreData() {
             return needsMoreData;
         }
+
+        @Override
+        public String toString() {
+            return "Downstream{" +
+                   "nodeId='" + nodeId + '\'' +
+                   ", needsMoreData=" + needsMoreData +
+                   '}';
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "DistributingConsumer{" +
+               "jobId=" + jobId +
+               ", targetPhaseId=" + targetPhaseId +
+               ", inputId=" + inputId +
+               ", bucketIdx=" + bucketIdx +
+               ", downstreams=" + downstreams +
+               '}';
     }
 }
