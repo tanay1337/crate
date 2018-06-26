@@ -24,6 +24,7 @@ package io.crate.integrationtests;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableList;
+import io.crate.exceptions.Exceptions;
 import io.crate.testing.SQLResponse;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
@@ -43,8 +44,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3, maxNumDataNodes = 3, transportClientRatio = 0, numClientNodes = 0)
@@ -53,7 +56,7 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
     private static final Logger LOGGER =Loggers.getLogger(GroupByDuringNetworkDisruptionITest.class);
     private ExecutorService executorService;
     private AtomicBoolean stopThreads;
-    private int numThreads = 80;
+    private int numThreads = 30;
 
     @Before
     public void setupExecutor() throws Exception {
@@ -66,6 +69,48 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
         stopThreads.set(true);
         executorService.shutdown();
         executorService.awaitTermination(5, TimeUnit.SECONDS);
+    }
+
+    @Test
+    public void testALotOfQueries() throws Exception {
+        execute("create table t1 (x int) clustered into 3 shards with (number_of_replicas = 0)");
+        Object[][] bulkArgs = IntStream.concat(
+            IntStream.range(0, 24),
+            IntStream.range(2, 36))
+            .mapToObj(x -> new Object[] { x })
+            .toArray(Object[][]::new);
+        execute("insert into t1 (x) values (?)", bulkArgs);
+        execute("refresh table t1");
+
+
+        int spawnLimit = 50_000;
+        AtomicInteger requestsMade = new AtomicInteger(0);
+        final List<ActionFuture<SQLResponse>> responses = new ArrayList<>();
+        for (int i = 0; i < numThreads; i++) {
+            executorService.submit(() -> {
+                while (requestsMade.incrementAndGet() < spawnLimit) {
+                    ActionFuture<SQLResponse> resp = sqlExecutor.execute("select x, count(*) from t1 group by x", null);
+                    synchronized (responses) {
+                        responses.add(resp);
+                    }
+                }
+            });
+        }
+        assertBusy(() -> assertThat(requestsMade.get(), greaterThanOrEqualTo(spawnLimit)));
+        executorService.shutdown();
+        executorService.awaitTermination(5, TimeUnit.SECONDS);
+        for (ActionFuture<SQLResponse> resp : responses) {
+            try {
+                resp.get(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                String message = Exceptions.userFriendlyMessageInclNested(e);
+                if (message.contains("EsRejectedExecutionException")) {
+                    // OK
+                } else {
+                    throw e;
+                }
+            }
+        }
     }
 
     @Test
