@@ -53,7 +53,7 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
     private static final Logger LOGGER =Loggers.getLogger(GroupByDuringNetworkDisruptionITest.class);
     private ExecutorService executorService;
     private AtomicBoolean stopThreads;
-    private int numThreads = 10;
+    private int numThreads = 80;
 
     @Before
     public void setupExecutor() throws Exception {
@@ -80,8 +80,9 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
         execute("insert into t1 (x) values (?)", bulkArgs);
         execute("refresh table t1");
 
-        final List<ActionFuture<SQLResponse>> responses = new ArrayList<>();
-        runConcurrentGroupBy(responses);
+        final List<SQLResponse> responses = new ArrayList<>();
+        final List<Throwable> errors = new ArrayList<>();
+        runConcurrentGroupBy(responses, errors);
 
         LOGGER.info("Waiting for queries to spawn");
         waitForMoreSpawnedQueries(responses, 20);
@@ -90,11 +91,9 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
 
         LOGGER.info("Waiting for queries to spawn (after disrupt)");
         waitForMoreSpawnedQueries(responses, 20);
-        LOGGER.info("Waiting for results");
-        waitOnResults(responses);
-        stopThreads.set(true);
+        //LOGGER.info("Waiting for results");
+        //waitOnResults(responses);
 
-        /*
         LOGGER.info("Clearing disruption");
         clearDisruptionScheme();
         LOGGER.info("Waiting for queries to spawn (after disruption clear)");
@@ -104,36 +103,43 @@ public class GroupByDuringNetworkDisruptionITest extends SQLTransportIntegration
         executorService.shutdown();
         executorService.awaitTermination(2, TimeUnit.SECONDS);
 
-        LOGGER.info("Waiting for results");
-        waitOnResults(responses);
-        */
+        //LOGGER.info("Waiting for results");
+        //waitOnResults(responses);
+        assertThat(errors.size(), is(0));
     }
 
-    private void runConcurrentGroupBy(List<ActionFuture<SQLResponse>> responses) {
+    private void runConcurrentGroupBy(List<SQLResponse> responses, List<Throwable> errors) {
         for (int i = 0; i < numThreads; i++) {
             executorService.submit(() -> {
                 while (!stopThreads.get()) {
-                    ActionFuture<SQLResponse> r = sqlExecutor.execute("select x, count(*) from t1 group by x", null);
-                    synchronized (responses) {
-                        responses.add(r);
+                    try {
+                        SQLResponse r = sqlExecutor.execute("select x, count(*) from t1 group by x", null).get(5, TimeUnit.SECONDS);
+                        synchronized (responses) {
+                            responses.add(r);
+                        }
+                    } catch (Throwable e) {
+                        synchronized (errors) {
+                            errors.add(e);
+                        }
                     }
                 }
             });
         }
     }
 
-    private static void waitOnResults(List<ActionFuture<SQLResponse>> responses) throws Exception {
+    private void waitOnResults(List<ActionFuture<SQLResponse>> responses) throws Exception {
         ImmutableList<ActionFuture<SQLResponse>> futures;
         synchronized (responses) {
             futures = ImmutableList.copyOf(responses);
             responses.clear();
         }
+        stopThreads.set(true);
         for (ActionFuture<SQLResponse> future: futures) {
             assertThat(future.get(2, TimeUnit.SECONDS).rowCount(), is(36L));
         }
     }
 
-    private static void waitForMoreSpawnedQueries(List<ActionFuture<SQLResponse>> responses,
+    private static void waitForMoreSpawnedQueries(List<?> responses,
                                                   int numQueries) throws Exception {
         int initialSize;
         synchronized (responses) {
