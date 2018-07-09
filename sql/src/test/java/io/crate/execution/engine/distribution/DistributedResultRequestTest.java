@@ -22,7 +22,6 @@
 
 package io.crate.execution.engine.distribution;
 
-import io.crate.Streamer;
 import io.crate.data.ArrayBucket;
 import io.crate.test.integration.CrateUnitTest;
 import io.crate.types.DataTypes;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.UUID;
 
 import static io.crate.testing.TestingHelpers.isNullRow;
@@ -44,22 +44,19 @@ public class DistributedResultRequestTest extends CrateUnitTest {
 
     @Test
     public void testStreaming() throws Exception {
-        Streamer<?>[] streamers = new Streamer[]{DataTypes.STRING.streamer()};
-
         Object[][] rows = new Object[][]{
             {new BytesRef("ab")}, {null}, {new BytesRef("cd")}
         };
         UUID uuid = UUID.randomUUID();
 
-        DistributedResultRequest r1 = new DistributedResultRequest(uuid, 1, (byte) 3, 1, streamers, new ArrayBucket(rows), false);
+        DistributedResultRequest r1 = new DistributedResultRequest(
+            uuid, 1, (byte) 3, 1, Collections.singletonList(DataTypes.STRING), new ArrayBucket(rows), false);
 
         BytesStreamOutput out = new BytesStreamOutput();
         r1.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         DistributedResultRequest r2 = new DistributedResultRequest();
         r2.readFrom(in);
-        r2.streamers(streamers);
-        assertTrue(r2.rowsCanBeRead());
 
         assertEquals(r1.rows().size(), r2.rows().size());
         assertThat(r1.isLast(), is(r2.isLast()));

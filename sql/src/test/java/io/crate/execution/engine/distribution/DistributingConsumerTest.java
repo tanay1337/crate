@@ -36,6 +36,7 @@ import io.crate.testing.FailingBatchIterator;
 import io.crate.testing.TestingBatchIterators;
 import io.crate.testing.TestingHelpers;
 import io.crate.testing.TestingRowConsumer;
+import io.crate.types.DataType;
 import io.crate.types.DataTypes;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -85,8 +86,8 @@ public class DistributingConsumerTest extends CrateUnitTest {
             Streamer<?>[] streamers = {DataTypes.INTEGER.streamer()};
             TestingRowConsumer collectingConsumer = new TestingRowConsumer();
             DistResultRXTask distResultRXTask = createPageDownstreamContext(streamers, collectingConsumer);
-            TransportDistributedResultAction distributedResultAction = createFakeTransport(streamers, distResultRXTask);
-            DistributingConsumer distributingConsumer = createDistributingConsumer(streamers, distributedResultAction);
+            TransportDistributedResultAction distributedResultAction = createFakeTransport(distResultRXTask);
+            DistributingConsumer distributingConsumer = createDistributingConsumer(Collections.singletonList(DataTypes.INTEGER), distributedResultAction);
 
             BatchSimulatingIterator<Row> batchSimulatingIterator =
                 new BatchSimulatingIterator<>(TestingBatchIterators.range(0, 5),
@@ -116,8 +117,9 @@ public class DistributingConsumerTest extends CrateUnitTest {
         Streamer<?>[] streamers = { DataTypes.INTEGER.streamer() };
         TestingRowConsumer collectingConsumer = new TestingRowConsumer();
         DistResultRXTask distResultRXTask = createPageDownstreamContext(streamers, collectingConsumer);
-        TransportDistributedResultAction distributedResultAction = createFakeTransport(streamers, distResultRXTask);
-        DistributingConsumer distributingConsumer = createDistributingConsumer(streamers, distributedResultAction);
+        TransportDistributedResultAction distributedResultAction = createFakeTransport(distResultRXTask);
+        DistributingConsumer distributingConsumer = createDistributingConsumer(
+            Collections.singletonList(DataTypes.INTEGER), distributedResultAction);
 
         distributingConsumer.accept(null, new CompletionException(new IllegalArgumentException("foobar")));
 
@@ -131,8 +133,9 @@ public class DistributingConsumerTest extends CrateUnitTest {
         Streamer<?>[] streamers = { DataTypes.INTEGER.streamer() };
         TestingRowConsumer collectingConsumer = new TestingRowConsumer();
         DistResultRXTask distResultRXTask = createPageDownstreamContext(streamers, collectingConsumer);
-        TransportDistributedResultAction distributedResultAction = createFakeTransport(streamers, distResultRXTask);
-        DistributingConsumer distributingConsumer = createDistributingConsumer(streamers, distributedResultAction);
+        TransportDistributedResultAction distributedResultAction = createFakeTransport(distResultRXTask);
+        DistributingConsumer distributingConsumer = createDistributingConsumer(
+            Collections.singletonList(DataTypes.INTEGER), distributedResultAction);
 
         distributingConsumer.accept(FailingBatchIterator.failOnAllLoaded(), null);
 
@@ -140,18 +143,18 @@ public class DistributingConsumerTest extends CrateUnitTest {
         collectingConsumer.getResult();
     }
 
-    private DistributingConsumer createDistributingConsumer(Streamer<?>[] streamers, TransportDistributedResultAction distributedResultAction) {
+    private DistributingConsumer createDistributingConsumer(List<DataType> types, TransportDistributedResultAction distributedResultAction) {
         return new DistributingConsumer(
             logger,
             executorService,
             UUID.randomUUID(),
-            new ModuloBucketBuilder(streamers, 1, 0),
+            new ModuloBucketBuilder(DataTypes.getStreamers(types), 1, 0),
             1,
             (byte) 0,
             0,
             Collections.singletonList("n1"),
             distributedResultAction,
-            streamers,
+            types,
             2 // pageSize
         );
     }
@@ -176,7 +179,7 @@ public class DistributingConsumerTest extends CrateUnitTest {
         );
     }
 
-    private TransportDistributedResultAction createFakeTransport(Streamer<?>[] streamers, DistResultRXTask distResultRXTask) {
+    private TransportDistributedResultAction createFakeTransport(DistResultRXTask distResultRXTask) {
         TransportDistributedResultAction distributedResultAction = mock(TransportDistributedResultAction.class);
         doAnswer((InvocationOnMock invocationOnMock) -> {
             Object[] args = invocationOnMock.getArguments();
@@ -186,7 +189,6 @@ public class DistributingConsumerTest extends CrateUnitTest {
             PageBucketReceiver bucketReceiver = distResultRXTask.getBucketReceiver(resultRequest.executionPhaseInputId());
             assertThat(bucketReceiver, Matchers.notNullValue());
             if (throwable == null) {
-                resultRequest.streamers(streamers);
                 bucketReceiver.setBucket(
                     resultRequest.bucketIdx(),
                     resultRequest.rows(),

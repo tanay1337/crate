@@ -22,7 +22,6 @@
 
 package io.crate.execution.engine.distribution;
 
-import io.crate.Streamer;
 import io.crate.data.Bucket;
 import io.crate.exceptions.TaskMissing;
 import io.crate.execution.engine.collect.stats.JobsLogs;
@@ -40,6 +39,7 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -80,7 +80,7 @@ public class TransportDistributedResultActionTest extends CrateDummyClusterServi
 
         try {
             transportDistributedResultAction.nodeOperation(
-                new DistributedResultRequest(UUID.randomUUID(), 0, (byte) 0, 0, new Streamer[0], Bucket.EMPTY, true)
+                new DistributedResultRequest(UUID.randomUUID(), 0, (byte) 0, 0, Collections.emptyList(), Bucket.EMPTY, true)
             ).get(5, TimeUnit.SECONDS);
             fail("nodeOperation call should fail with TaskMissing");
         } catch (ExecutionException e) {

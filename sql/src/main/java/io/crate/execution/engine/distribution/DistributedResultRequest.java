@@ -22,14 +22,19 @@
 
 package io.crate.execution.engine.distribution;
 
-import io.crate.Streamer;
 import io.crate.data.Bucket;
+import io.crate.data.CollectionBucket;
+import io.crate.data.Row;
+import io.crate.types.DataType;
+import io.crate.types.DataTypes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportRequest;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 public class DistributedResultRequest extends TransportRequest {
@@ -38,7 +43,7 @@ public class DistributedResultRequest extends TransportRequest {
     private int executionPhaseId;
     private int bucketIdx;
 
-    private Streamer<?>[] streamers;
+    private List<DataType> columnTypes;
     private Bucket rows;
     private UUID jobId;
     private boolean isLast = true;
@@ -60,11 +65,11 @@ public class DistributedResultRequest extends TransportRequest {
                                     int executionPhaseId,
                                     byte inputId,
                                     int bucketIdx,
-                                    Streamer<?>[] streamers,
+                                    List<DataType> columnTypes,
                                     Bucket rows,
                                     boolean isLast) {
         this(jobId, inputId, executionPhaseId, bucketIdx);
-        this.streamers = streamers;
+        this.columnTypes = columnTypes;
         this.rows = rows;
         this.isLast = isLast;
     }
@@ -94,21 +99,6 @@ public class DistributedResultRequest extends TransportRequest {
 
     public int bucketIdx() {
         return bucketIdx;
-    }
-
-    public void streamers(Streamer<?>[] streamers) {
-        if (rows instanceof StreamBucket) {
-            assert streamers != null : "streamers must not be null";
-            ((StreamBucket) rows).streamers(streamers);
-        }
-        this.streamers = streamers;
-    }
-
-    public boolean rowsCanBeRead() {
-        if (rows instanceof StreamBucket) {
-            return streamers != null;
-        }
-        return true;
     }
 
     public Bucket rows() {
@@ -142,9 +132,21 @@ public class DistributedResultRequest extends TransportRequest {
             throwable = in.readException();
             isKilled = in.readBoolean();
         } else {
-            StreamBucket bucket = new StreamBucket(streamers);
-            bucket.readFrom(in);
-            rows = bucket;
+            int numColumns = in.readVInt();
+            columnTypes = new ArrayList<>(numColumns);
+            for (int i = 0; i < numColumns; i++) {
+                columnTypes.add(DataTypes.fromStream(in));
+            }
+            int numRows = in.readVInt();
+            ArrayList<Object[]> objects = new ArrayList<>(numRows);
+            for (int r = 0; r < numRows; r++) {
+                Object[] row = new Object[columnTypes.size()];
+                for (int c = 0; c < columnTypes.size(); c++) {
+                    row[c] = columnTypes.get(c).streamer().readValueFrom(in);
+                }
+                objects.add(row);
+            }
+            rows = new CollectionBucket(objects);
         }
     }
 
@@ -164,8 +166,18 @@ public class DistributedResultRequest extends TransportRequest {
             out.writeException(throwable);
             out.writeBoolean(isKilled);
         } else {
-            // TODO: we should not rely on another bucket in this class and instead write to the stream directly
-            StreamBucket.writeBucket(out, streamers, rows);
+            out.writeVInt(columnTypes.size());
+            for (DataType columnType: columnTypes) {
+                DataTypes.toStream(columnType, out);
+            }
+            out.writeVInt(rows.size());
+            for (Row row: rows) {
+                assert row.numColumns() == columnTypes.size() : "columns and row size must match";
+                for (int i = 0; i < row.numColumns(); i++) {
+                    //noinspection unchecked
+                    columnTypes.get(i).streamer().writeValueTo(out, row.get(i));
+                }
+            }
         }
     }
 }

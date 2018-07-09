@@ -23,12 +23,12 @@
 package io.crate.execution.engine.distribution;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.crate.Streamer;
 import io.crate.data.BatchIterator;
 import io.crate.data.Bucket;
 import io.crate.data.Row;
 import io.crate.data.RowConsumer;
 import io.crate.exceptions.SQLExceptions;
+import io.crate.types.DataType;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -59,7 +59,7 @@ public class DistributingConsumer implements RowConsumer {
     private final byte inputId;
     private final int bucketIdx;
     private final TransportDistributedResultAction distributedResultAction;
-    private final Streamer<?>[] streamers;
+    private final List<DataType> columnTypes;
     private final int pageSize;
     private final Bucket[] buckets;
     private final List<Downstream> downstreams;
@@ -79,7 +79,7 @@ public class DistributingConsumer implements RowConsumer {
                                 int bucketIdx,
                                 Collection<String> downstreamNodeIds,
                                 TransportDistributedResultAction distributedResultAction,
-                                Streamer<?>[] streamers,
+                                List<DataType> columnTypes,
                                 int pageSize) {
         this.traceEnabled = logger.isTraceEnabled();
         this.logger = logger;
@@ -90,7 +90,7 @@ public class DistributingConsumer implements RowConsumer {
         this.inputId = inputId;
         this.bucketIdx = bucketIdx;
         this.distributedResultAction = distributedResultAction;
-        this.streamers = streamers;
+        this.columnTypes = columnTypes;
         this.pageSize = pageSize;
         this.buckets = new Bucket[downstreamNodeIds.size()];
         downstreams = new ArrayList<>(downstreamNodeIds.size());
@@ -194,7 +194,7 @@ public class DistributingConsumer implements RowConsumer {
             }
             distributedResultAction.pushResult(
                 downstream.nodeId,
-                new DistributedResultRequest(jobId, targetPhaseId, inputId, bucketIdx, streamers, buckets[i], isLast),
+                new DistributedResultRequest(jobId, targetPhaseId, inputId, bucketIdx, columnTypes, buckets[i], isLast),
                 new ActionListener<DistributedResultResponse>() {
                     @Override
                     public void onResponse(DistributedResultResponse response) {

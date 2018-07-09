@@ -28,6 +28,7 @@ import io.crate.execution.dsl.phases.ExecutionPhases;
 import io.crate.execution.dsl.phases.NodeOperation;
 import io.crate.execution.jobs.PageBucketReceiver;
 import io.crate.planner.distribution.DistributionInfo;
+import io.crate.planner.node.PhaseVisitor;
 import io.crate.planner.node.StreamerVisitor;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -104,7 +105,7 @@ public class DistributingConsumerFactory extends AbstractComponent {
             bucketIdx,
             nodeOperation.downstreamNodes(),
             transportDistributedResultAction,
-            streamers,
+            PhaseVisitor.typesFromOutputs(nodeOperation.executionPhase()),
             pageSize
         );
     }
