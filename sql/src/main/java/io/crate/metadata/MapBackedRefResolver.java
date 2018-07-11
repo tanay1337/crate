@@ -28,26 +28,25 @@ import java.util.Map;
 
 public final class MapBackedRefResolver implements ReferenceResolver<NestableInput<?>> {
 
-    private final Map<ReferenceIdent, NestableInput> implByIdent;
+    private final Map<ColumnIdent, NestableInput> implByIdent;
 
-    public MapBackedRefResolver(Map<ReferenceIdent, NestableInput> implByIdent) {
+    public MapBackedRefResolver(Map<ColumnIdent, NestableInput> implByIdent) {
         this.implByIdent = implByIdent;
     }
 
     @Override
     public NestableInput getImplementation(Reference ref) {
-        return lookupMapWithChildTraversal(implByIdent, ref.ident());
+        return lookupMapWithChildTraversal(implByIdent, ref.column());
     }
 
-    static NestableInput lookupMapWithChildTraversal(Map<ReferenceIdent, NestableInput> implByIdent,
-                                                     ReferenceIdent ident) {
-        if (ident.columnIdent().isTopLevel()) {
-            return implByIdent.get(ident);
+    static NestableInput lookupMapWithChildTraversal(Map<ColumnIdent, NestableInput> implByIdent, ColumnIdent column) {
+        if (column.isTopLevel()) {
+            return implByIdent.get(column);
         }
-        NestableInput<?> impl = implByIdent.get(ident.columnReferenceIdent());
+        NestableInput<?> impl = implByIdent.get(column.getRoot());
         if (impl == null) {
             return null;
         }
-        return NestableInput.getChildByPath(impl, ident.columnIdent().path());
+        return NestableInput.getChildByPath(impl, column.path());
     }
 }

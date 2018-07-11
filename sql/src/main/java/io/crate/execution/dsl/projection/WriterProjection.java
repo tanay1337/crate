@@ -57,9 +57,9 @@ public class WriterProjection extends Projection {
         new Value(DataTypes.LONG) // number of lines written
     );
 
-    private static final Reference SHARD_ID_REF = new Reference(SysShardsTableInfo.ReferenceIdents.ID, RowGranularity.SHARD, IntegerType.INSTANCE);
-    private static final Reference TABLE_NAME_REF = new Reference(SysShardsTableInfo.ReferenceIdents.TABLE_NAME, RowGranularity.SHARD, StringType.INSTANCE);
-    private static final Reference PARTITION_IDENT_REF = new Reference(SysShardsTableInfo.ReferenceIdents.PARTITION_IDENT, RowGranularity.SHARD, StringType.INSTANCE);
+    private static final Reference SHARD_ID_REF = new Reference(SysShardsTableInfo.Columns.ID, RowGranularity.SHARD, IntegerType.INSTANCE);
+    private static final Reference TABLE_NAME_REF = new Reference(SysShardsTableInfo.Columns.TABLE_NAME, RowGranularity.SHARD, StringType.INSTANCE);
+    private static final Reference PARTITION_IDENT_REF = new Reference(SysShardsTableInfo.Columns.PARTITION_IDENT, RowGranularity.SHARD, StringType.INSTANCE);
 
 
     public static final Symbol DIRECTORY_TO_FILENAME = new Function(new FunctionInfo(

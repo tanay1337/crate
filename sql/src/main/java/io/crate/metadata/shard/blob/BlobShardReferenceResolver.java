@@ -36,8 +36,8 @@ import io.crate.expression.reference.sys.shard.blob.BlobShardBlobPathExpression;
 import io.crate.expression.reference.sys.shard.blob.BlobShardNumDocsExpression;
 import io.crate.expression.reference.sys.shard.blob.BlobShardSizeExpression;
 import io.crate.expression.reference.sys.shard.blob.BlobShardTableNameExpression;
+import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.MapBackedRefResolver;
-import io.crate.metadata.ReferenceIdent;
 import io.crate.metadata.blob.BlobSchemaInfo;
 import io.crate.metadata.shard.NodeNestableInput;
 import io.crate.metadata.sys.SysShardsTableInfo;
@@ -53,29 +53,29 @@ public class BlobShardReferenceResolver {
     public static ReferenceResolver<NestableInput<?>> create(BlobShard blobShard, DiscoveryNode localNode) {
         IndexShard indexShard = blobShard.indexShard();
         ShardId shardId = indexShard.shardId();
-        HashMap<ReferenceIdent, NestableInput> implementations = new HashMap<>(15);
-        implementations.put(SysShardsTableInfo.ReferenceIdents.ID, new LiteralNestableInput<>(shardId.id()));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.NUM_DOCS, new BlobShardNumDocsExpression(blobShard));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.PRIMARY, new ShardPrimaryExpression(indexShard));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.RELOCATING_NODE,
+        HashMap<ColumnIdent, NestableInput> implementations = new HashMap<>(15);
+        implementations.put(SysShardsTableInfo.Columns.ID, new LiteralNestableInput<>(shardId.id()));
+        implementations.put(SysShardsTableInfo.Columns.NUM_DOCS, new BlobShardNumDocsExpression(blobShard));
+        implementations.put(SysShardsTableInfo.Columns.PRIMARY, new ShardPrimaryExpression(indexShard));
+        implementations.put(SysShardsTableInfo.Columns.RELOCATING_NODE,
             new ShardRelocatingNodeExpression(indexShard));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.SCHEMA_NAME,
+        implementations.put(SysShardsTableInfo.Columns.SCHEMA_NAME,
             new LiteralNestableInput<>(new BytesRef(BlobSchemaInfo.NAME)));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.SIZE, new BlobShardSizeExpression(blobShard));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.STATE, new ShardStateExpression(indexShard));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.ROUTING_STATE, new ShardRoutingStateExpression(indexShard));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.TABLE_NAME, new BlobShardTableNameExpression(shardId));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.PARTITION_IDENT,
+        implementations.put(SysShardsTableInfo.Columns.SIZE, new BlobShardSizeExpression(blobShard));
+        implementations.put(SysShardsTableInfo.Columns.STATE, new ShardStateExpression(indexShard));
+        implementations.put(SysShardsTableInfo.Columns.ROUTING_STATE, new ShardRoutingStateExpression(indexShard));
+        implementations.put(SysShardsTableInfo.Columns.TABLE_NAME, new BlobShardTableNameExpression(shardId));
+        implementations.put(SysShardsTableInfo.Columns.PARTITION_IDENT,
             new LiteralNestableInput<>(new BytesRef("")));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.ORPHAN_PARTITION,
+        implementations.put(SysShardsTableInfo.Columns.ORPHAN_PARTITION,
             new LiteralNestableInput<>(false));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.PATH, new ShardPathExpression(indexShard));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.BLOB_PATH, new BlobShardBlobPathExpression(blobShard));
+        implementations.put(SysShardsTableInfo.Columns.PATH, new ShardPathExpression(indexShard));
+        implementations.put(SysShardsTableInfo.Columns.BLOB_PATH, new BlobShardBlobPathExpression(blobShard));
         implementations.put(
-            SysShardsTableInfo.ReferenceIdents.MIN_LUCENE_VERSION,
+            SysShardsTableInfo.Columns.MIN_LUCENE_VERSION,
             new ShardMinLuceneVersionExpression(indexShard));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.RECOVERY, new ShardRecoveryExpression(indexShard));
-        implementations.put(SysShardsTableInfo.ReferenceIdents.NODE, new NodeNestableInput(localNode));
+        implementations.put(SysShardsTableInfo.Columns.RECOVERY, new ShardRecoveryExpression(indexShard));
+        implementations.put(SysShardsTableInfo.Columns.NODE, new NodeNestableInput(localNode));
         return new MapBackedRefResolver(implementations);
     }
 

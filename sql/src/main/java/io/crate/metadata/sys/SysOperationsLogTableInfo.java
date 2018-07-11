@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableMap;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.WhereClause;
 import io.crate.execution.engine.collect.NestableCollectExpression;
+import io.crate.expression.reference.sys.operation.OperationContextLog;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.Routing;
@@ -33,7 +34,6 @@ import io.crate.metadata.RowGranularity;
 import io.crate.metadata.expressions.RowCollectExpressionFactory;
 import io.crate.metadata.table.ColumnRegistrar;
 import io.crate.metadata.table.StaticTableInfo;
-import io.crate.expression.reference.sys.operation.OperationContextLog;
 import io.crate.types.DataTypes;
 import org.elasticsearch.cluster.ClusterState;
 
@@ -82,7 +82,7 @@ public class SysOperationsLogTableInfo extends StaticTableInfo {
     }
 
     SysOperationsLogTableInfo() {
-        super(IDENT, new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        super(IDENT, new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.ID, DataTypes.STRING)
             .register(Columns.JOB_ID, DataTypes.STRING)
             .register(Columns.NAME, DataTypes.STRING)

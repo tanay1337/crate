@@ -100,7 +100,8 @@ public class FetchTask extends AbstractTask {
         }
         Set<RelationName> tablesWithFetchRefs = new HashSet<>();
         for (Reference reference : phase.fetchRefs()) {
-            tablesWithFetchRefs.add(reference.ident().tableIdent());
+            // TODO:
+            // tablesWithFetchRefs.add(reference.ident().tableIdent());
         }
 
 
@@ -146,7 +147,7 @@ public class FetchTask extends AbstractTask {
             }
         }
         for (Reference reference : phase.fetchRefs()) {
-            Collection<Reference> references = toFetch.get(reference.ident().tableIdent());
+            Collection<Reference> references = null; // TODO: toFetch.get(reference.ident().tableIdent());
             if (references != null) {
                 references.add(reference);
             }

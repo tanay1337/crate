@@ -25,10 +25,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.crate.Version;
 import io.crate.execution.engine.collect.NestableCollectExpression;
+import io.crate.expression.reference.information.TablesSettingsExpression;
+import io.crate.expression.reference.information.TablesVersionExpression;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.IndexMappings;
-import io.crate.metadata.RelationName;
 import io.crate.metadata.RelationInfo;
+import io.crate.metadata.RelationName;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.blob.BlobTableInfo;
 import io.crate.metadata.doc.DocTableInfo;
@@ -36,8 +38,6 @@ import io.crate.metadata.expressions.RowCollectExpressionFactory;
 import io.crate.metadata.table.ColumnPolicy;
 import io.crate.metadata.table.ColumnRegistrar;
 import io.crate.metadata.table.ShardedTable;
-import io.crate.expression.reference.information.TablesSettingsExpression;
-import io.crate.expression.reference.information.TablesVersionExpression;
 import io.crate.types.DataTypes;
 import org.apache.lucene.util.BytesRef;
 
@@ -134,7 +134,7 @@ public class InformationTablesTableInfo extends InformationTableInfo {
     }
 
     private static ColumnRegistrar createColumnRegistrar() {
-        return new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        return new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.TABLE_SCHEMA, DataTypes.STRING)
             .register(Columns.TABLE_NAME, DataTypes.STRING)
             .register(Columns.TABLE_CATALOG, DataTypes.STRING)

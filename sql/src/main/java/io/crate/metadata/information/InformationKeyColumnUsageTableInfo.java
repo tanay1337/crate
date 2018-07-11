@@ -24,11 +24,11 @@ package io.crate.metadata.information;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import io.crate.execution.engine.collect.sources.InformationSchemaIterables;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.expressions.RowCollectExpressionFactory;
-import io.crate.execution.engine.collect.sources.InformationSchemaIterables;
 import io.crate.metadata.table.ColumnRegistrar;
 import io.crate.types.DataTypes;
 
@@ -56,7 +56,7 @@ public class InformationKeyColumnUsageTableInfo extends InformationTableInfo {
     }
 
     private static ColumnRegistrar columnRegistrar() {
-        return new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        return new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.CONSTRAINT_CATALOG, DataTypes.STRING)
             .register(Columns.CONSTRAINT_SCHEMA, DataTypes.STRING)
             .register(Columns.CONSTRAINT_NAME, DataTypes.STRING)

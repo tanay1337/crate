@@ -52,7 +52,7 @@ public class InformationTableConstraintsTableInfo extends InformationTableInfo {
     }
 
     private static ColumnRegistrar columnRegistrar() {
-        return new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        return new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.CONSTRAINT_CATALOG, DataTypes.STRING)
             .register(Columns.CONSTRAINT_SCHEMA, DataTypes.STRING)
             .register(Columns.CONSTRAINT_NAME, DataTypes.STRING)

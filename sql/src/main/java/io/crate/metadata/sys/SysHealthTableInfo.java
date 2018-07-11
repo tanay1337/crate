@@ -75,7 +75,7 @@ public class SysHealthTableInfo extends StaticTableInfo {
 
     SysHealthTableInfo() {
         super(IDENT,
-            new ColumnRegistrar(IDENT, GRANULARITY)
+            new ColumnRegistrar(GRANULARITY)
                 .register(Columns.TABLE_NAME, DataTypes.STRING)
                 .register(Columns.TABLE_SCHEMA, DataTypes.STRING)
                 .register(Columns.PARTITION_IDENT, DataTypes.STRING)

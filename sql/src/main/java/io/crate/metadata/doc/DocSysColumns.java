@@ -26,8 +26,6 @@ import com.google.common.collect.ImmutableMap;
 import io.crate.execution.engine.fetch.FetchId;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.Reference;
-import io.crate.metadata.ReferenceIdent;
-import io.crate.metadata.RelationName;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.table.ColumnPolicy;
 import io.crate.types.DataType;
@@ -81,23 +79,23 @@ public class DocSysColumns {
         .put(ID, UID.name())
         .build();
 
-    private static Reference newInfo(RelationName table, ColumnIdent column, DataType dataType) {
-        return new Reference(new ReferenceIdent(table, column), RowGranularity.DOC, dataType, ColumnPolicy.STRICT,
+    private static Reference newInfo(ColumnIdent column, DataType dataType) {
+        return new Reference(column, RowGranularity.DOC, dataType, ColumnPolicy.STRICT,
             Reference.IndexType.NOT_ANALYZED, false);
     }
 
     /**
      * Calls {@code consumer} for each sys column with a reference containing {@code relationName}
      */
-    public static void forTable(RelationName relationName, BiConsumer<ColumnIdent, Reference> consumer) {
+    public static void forColumn(BiConsumer<ColumnIdent, Reference> consumer) {
         for (Map.Entry<ColumnIdent, DataType> entry : COLUMN_IDENTS.entrySet()) {
             ColumnIdent columnIdent = entry.getKey();
-            consumer.accept(columnIdent, newInfo(relationName, columnIdent, entry.getValue()));
+            consumer.accept(columnIdent, newInfo(columnIdent, entry.getValue()));
         }
     }
 
-    public static Reference forTable(RelationName table, ColumnIdent column) {
-        return newInfo(table, column, COLUMN_IDENTS.get(column));
+    public static Reference forColumn(ColumnIdent column) {
+        return newInfo(column, COLUMN_IDENTS.get(column));
     }
 
     public static String nameForLucene(ColumnIdent ident) {

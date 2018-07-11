@@ -27,6 +27,8 @@ import com.google.common.collect.ImmutableMap;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.WhereClause;
 import io.crate.execution.engine.collect.NestableCollectExpression;
+import io.crate.expression.reference.sys.shard.SysAllocation;
+import io.crate.expression.reference.sys.shard.SysAllocationDecisionsExpression;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.Routing;
@@ -35,8 +37,6 @@ import io.crate.metadata.RowGranularity;
 import io.crate.metadata.expressions.RowCollectExpressionFactory;
 import io.crate.metadata.table.ColumnRegistrar;
 import io.crate.metadata.table.StaticTableInfo;
-import io.crate.expression.reference.sys.shard.SysAllocation;
-import io.crate.expression.reference.sys.shard.SysAllocationDecisionsExpression;
 import io.crate.types.DataTypes;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterState;
@@ -129,7 +129,7 @@ public class SysAllocationsTableInfo extends StaticTableInfo {
     }
 
     SysAllocationsTableInfo() {
-        super(IDENT, new ColumnRegistrar(IDENT, GRANULARITY)
+        super(IDENT, new ColumnRegistrar(GRANULARITY)
             .register(Columns.TABLE_SCHEMA, DataTypes.STRING)
             .register(Columns.TABLE_NAME, DataTypes.STRING)
             .register(Columns.PARTITION_IDENT, DataTypes.STRING)

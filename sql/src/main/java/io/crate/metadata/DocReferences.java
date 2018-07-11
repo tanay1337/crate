@@ -83,14 +83,12 @@ public final class DocReferences {
     }
 
     private static Reference toSourceLookup(Reference reference, Predicate<Reference> condition) {
-        ReferenceIdent ident = reference.ident();
-        if (ident.columnIdent().isSystemColumn()) {
+        if (reference.column().isSystemColumn()) {
             return reference;
         }
-        if (reference.granularity() == RowGranularity.DOC && Schemas.isDefaultOrCustomSchema(ident.tableIdent().schema())
+        if (reference.granularity() == RowGranularity.DOC
             && condition.test(reference)) {
-            return reference.getRelocated(
-                new ReferenceIdent(ident.tableIdent(), ident.columnIdent().prepend(DocSysColumns.Names.DOC)));
+            return reference.getRelocated(reference.column().prepend(DocSysColumns.Names.DOC));
         }
         return reference;
     }
@@ -98,7 +96,7 @@ public final class DocReferences {
     private static Reference docRefToRegularRef(Reference ref) {
         ColumnIdent column = ref.column();
         if (!column.isTopLevel() && column.name().equals(DocSysColumns.Names.DOC)) {
-            return ref.getRelocated(new ReferenceIdent(ref.ident().tableIdent(), column.shiftRight()));
+            return ref.getRelocated(column.shiftRight());
         }
         return ref;
     }

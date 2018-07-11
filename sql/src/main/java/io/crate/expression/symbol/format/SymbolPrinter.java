@@ -46,7 +46,6 @@ import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.Functions;
 import io.crate.metadata.Reference;
-import io.crate.metadata.RelationName;
 import io.crate.types.ArrayType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
@@ -239,10 +238,6 @@ public final class SymbolPrinter {
 
         @Override
         public Void visitReference(Reference symbol, SymbolPrinterContext context) {
-            if (context.isFullQualified() && !isTableFunctionReference(symbol)) {
-                context.builder.append(symbol.ident().tableIdent().sqlFqn())
-                    .append(DOT);
-            }
             context.builder.append(symbol.column().quotedOutputName());
             return null;
         }
@@ -328,11 +323,6 @@ public final class SymbolPrinter {
                     context.builder.append(COMMA).append(WS);
                 }
             }
-        }
-
-        private static boolean isTableFunctionReference(Reference reference) {
-            RelationName relationName = reference.ident().tableIdent();
-            return "".equals(relationName.schema());
         }
 
         private static boolean isTableFunctionField(Field field) {

@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableMap;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.WhereClause;
 import io.crate.execution.engine.collect.NestableCollectExpression;
+import io.crate.expression.reference.sys.snapshot.SysSnapshot;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.Routing;
@@ -34,7 +35,6 @@ import io.crate.metadata.RowGranularity;
 import io.crate.metadata.expressions.RowCollectExpressionFactory;
 import io.crate.metadata.table.ColumnRegistrar;
 import io.crate.metadata.table.StaticTableInfo;
-import io.crate.expression.reference.sys.snapshot.SysSnapshot;
 import io.crate.types.ArrayType;
 import io.crate.types.DataTypes;
 import org.apache.lucene.util.BytesRef;
@@ -87,7 +87,7 @@ public class SysSnapshotsTableInfo extends StaticTableInfo {
 
 
     SysSnapshotsTableInfo() {
-        super(IDENT, new ColumnRegistrar(IDENT, GRANULARITY)
+        super(IDENT, new ColumnRegistrar(GRANULARITY)
                 .register(Columns.NAME, DataTypes.STRING)
                 .register(Columns.REPOSITORY, DataTypes.STRING)
                 .register(Columns.CONCRETE_INDICES, new ArrayType(DataTypes.STRING))

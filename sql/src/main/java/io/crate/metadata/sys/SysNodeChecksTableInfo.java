@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.WhereClause;
 import io.crate.execution.engine.collect.NestableCollectExpression;
+import io.crate.expression.reference.sys.check.node.SysNodeCheck;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.Routing;
@@ -37,7 +38,6 @@ import io.crate.metadata.expressions.RowCollectExpressionFactory;
 import io.crate.metadata.table.ColumnRegistrar;
 import io.crate.metadata.table.Operation;
 import io.crate.metadata.table.StaticTableInfo;
-import io.crate.expression.reference.sys.check.node.SysNodeCheck;
 import io.crate.types.DataTypes;
 import org.elasticsearch.cluster.ClusterState;
 
@@ -81,14 +81,14 @@ public class SysNodeChecksTableInfo extends StaticTableInfo {
     }
 
     SysNodeChecksTableInfo() {
-        super(IDENT, new ColumnRegistrar(IDENT, GRANULARITY)
+        super(IDENT, new ColumnRegistrar(GRANULARITY)
                 .register(SysNodeChecksTableInfo.Columns.ID, DataTypes.INTEGER)
                 .register(SysNodeChecksTableInfo.Columns.NODE_ID, DataTypes.STRING)
                 .register(SysNodeChecksTableInfo.Columns.SEVERITY, DataTypes.INTEGER)
                 .register(SysNodeChecksTableInfo.Columns.DESCRIPTION, DataTypes.STRING)
                 .register(SysNodeChecksTableInfo.Columns.PASSED, DataTypes.BOOLEAN)
                 .register(SysNodeChecksTableInfo.Columns.ACKNOWLEDGED, DataTypes.BOOLEAN)
-                .putInfoOnly(DocSysColumns.ID, DocSysColumns.forTable(IDENT, DocSysColumns.ID)),
+                .putInfoOnly(DocSysColumns.ID, DocSysColumns.forColumn(DocSysColumns.ID)),
             PRIMARY_KEYS);
     }
 

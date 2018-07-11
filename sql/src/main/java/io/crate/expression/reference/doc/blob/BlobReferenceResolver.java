@@ -22,10 +22,9 @@
 package io.crate.expression.reference.doc.blob;
 
 import com.google.common.collect.ImmutableMap;
-import io.crate.metadata.Reference;
-import io.crate.metadata.blob.BlobSchemaInfo;
 import io.crate.execution.engine.collect.CollectExpression;
 import io.crate.expression.reference.ReferenceResolver;
+import io.crate.metadata.Reference;
 
 import java.io.File;
 import java.util.Map;
@@ -45,8 +44,6 @@ public class BlobReferenceResolver implements ReferenceResolver<CollectExpressio
 
     @Override
     public CollectExpression<File, ?> getImplementation(Reference refInfo) {
-        assert BlobSchemaInfo.NAME.equals(refInfo.ident().tableIdent().schema()) :
-            "schema name must be 'blob";
         ExpressionBuilder builder = EXPRESSION_BUILDER.get(refInfo.column().name());
         if (builder != null) {
             return builder.create();

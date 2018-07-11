@@ -72,7 +72,7 @@ public class SysMetricsTableInfo extends StaticTableInfo {
 
     SysMetricsTableInfo() {
         super(NAME,
-            new ColumnRegistrar(NAME, RowGranularity.DOC)
+            new ColumnRegistrar(RowGranularity.DOC)
                 .register(Columns.TOTAL_COUNT, DataTypes.LONG)
                 .register(Columns.MEAN, DataTypes.DOUBLE)
                 .register(Columns.STDEV, DataTypes.DOUBLE)

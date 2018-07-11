@@ -522,18 +522,6 @@ public class ProjectionToProjectorVisitor
         RelationName relationName = null;
         InputFactory.Context<NestableCollectExpression<?, ?>> readCtx = null;
 
-        for (Map.Entry<Reference, Symbol> e : assignments.entrySet()) {
-            Reference ref = e.getKey();
-            assert relationName == null || relationName.equals(ref.ident().tableIdent()) : "mixed table assignments found";
-            relationName = ref.ident().tableIdent();
-            if (readCtx == null) {
-                StaticTableDefinition<?> tableDefinition = staticTableDefinitionGetter.apply(relationName);
-                readCtx = inputFactory.ctxForRefs(tableDefinition.getReferenceResolver());
-            }
-            assignmentCols.add(ref.column());
-            Input<?> sourceInput = readCtx.add(e.getValue());
-            valueInputs.add(sourceInput);
-        }
 
         SysRowUpdater<?> rowUpdater = sysUpdaterGetter.apply(relationName);
         assert readCtx != null : "readCtx must not be null";

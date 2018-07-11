@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.WhereClause;
 import io.crate.execution.engine.collect.NestableCollectExpression;
+import io.crate.execution.engine.collect.files.SummitsContext;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.Routing;
@@ -35,7 +36,6 @@ import io.crate.metadata.RowGranularity;
 import io.crate.metadata.expressions.RowCollectExpressionFactory;
 import io.crate.metadata.table.ColumnRegistrar;
 import io.crate.metadata.table.StaticTableInfo;
-import io.crate.execution.engine.collect.files.SummitsContext;
 import io.crate.types.DataTypes;
 import org.elasticsearch.cluster.ClusterState;
 
@@ -84,7 +84,7 @@ public class SysSummitsTableInfo extends StaticTableInfo {
     }
 
     SysSummitsTableInfo() {
-        super(IDENT, new ColumnRegistrar(IDENT, GRANULARITY)
+        super(IDENT, new ColumnRegistrar(GRANULARITY)
             .register(Columns.MOUNTAIN, DataTypes.STRING)
             .register(Columns.HEIGHT, DataTypes.INTEGER)
             .register(Columns.PROMINENCE, DataTypes.INTEGER)

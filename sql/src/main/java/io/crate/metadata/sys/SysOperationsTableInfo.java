@@ -84,7 +84,7 @@ public class SysOperationsTableInfo extends StaticTableInfo {
     }
 
     SysOperationsTableInfo() {
-        super(IDENT, new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        super(IDENT, new ColumnRegistrar(RowGranularity.DOC)
                 .register(Columns.ID, DataTypes.STRING)
                 .register(Columns.JOB_ID, DataTypes.STRING)
                 .register(Columns.NAME, DataTypes.STRING)

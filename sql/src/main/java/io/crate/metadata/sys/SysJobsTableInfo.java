@@ -77,7 +77,7 @@ public class SysJobsTableInfo extends StaticTableInfo {
     }
 
     SysJobsTableInfo() {
-        super(IDENT, new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        super(IDENT, new ColumnRegistrar(RowGranularity.DOC)
                 .register(Columns.ID, DataTypes.STRING)
                 .register(Columns.USERNAME, DataTypes.STRING)
                 .register(Columns.NODE, DataTypes.OBJECT)

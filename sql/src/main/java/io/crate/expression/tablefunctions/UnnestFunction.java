@@ -34,7 +34,6 @@ import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.Reference;
-import io.crate.metadata.ReferenceIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.Routing;
 import io.crate.metadata.RoutingProvider;
@@ -156,9 +155,7 @@ public class UnnestFunction {
             for (int i = 0; i < info.ident().argumentTypes().size(); i++) {
                 ColumnIdent columnIdent = new ColumnIdent("col" + (i + 1));
                 DataType dataType = ((CollectionType) info.ident().argumentTypes().get(i)).innerType();
-                Reference reference = new Reference(
-                    new ReferenceIdent(TABLE_IDENT, columnIdent),
-                    RowGranularity.DOC, dataType);
+                Reference reference = new Reference(columnIdent, RowGranularity.DOC, dataType);
 
                 columns.add(reference);
                 columnMap.put(columnIdent, reference);

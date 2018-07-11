@@ -46,7 +46,7 @@ public class Reference extends Symbol {
     }
 
     protected DataType type;
-    private final ReferenceIdent ident;
+    private final ColumnIdent column;
     private final ColumnPolicy columnPolicy;
     private final RowGranularity granularity;
     private final IndexType indexType;
@@ -54,7 +54,7 @@ public class Reference extends Symbol {
     private final boolean columnStoreDisabled;
 
     public Reference(StreamInput in) throws IOException {
-        ident = new ReferenceIdent(in);
+        column = new ColumnIdent(in);
         type = DataTypes.fromStream(in);
         granularity = RowGranularity.fromStream(in);
 
@@ -64,29 +64,29 @@ public class Reference extends Symbol {
         columnStoreDisabled = in.readBoolean();
     }
 
-    public Reference(ReferenceIdent ident,
+    public Reference(ColumnIdent column,
                      RowGranularity granularity,
                      DataType type) {
-        this(ident, granularity, type, ColumnPolicy.DYNAMIC, IndexType.NOT_ANALYZED, true);
+        this(column, granularity, type, ColumnPolicy.DYNAMIC, IndexType.NOT_ANALYZED, true);
     }
 
-    public Reference(ReferenceIdent ident,
+    public Reference(ColumnIdent column,
                      RowGranularity granularity,
                      DataType type,
                      ColumnPolicy columnPolicy,
                      IndexType indexType,
                      boolean nullable) {
-        this(ident, granularity, type, columnPolicy, indexType, nullable, false);
+        this(column, granularity, type, columnPolicy, indexType, nullable, false);
     }
 
-    public Reference(ReferenceIdent ident,
+    public Reference(ColumnIdent column,
                      RowGranularity granularity,
                      DataType type,
                      ColumnPolicy columnPolicy,
                      IndexType indexType,
                      boolean nullable,
                      boolean columnStoreDisabled) {
-        this.ident = ident;
+        this.column = column;
         this.type = type;
         this.granularity = granularity;
         this.columnPolicy = columnPolicy;
@@ -95,12 +95,18 @@ public class Reference extends Symbol {
         this.columnStoreDisabled = columnStoreDisabled;
     }
 
-    /**
-     * Returns a cloned Reference with the given ident
-     */
-    public Reference getRelocated(ReferenceIdent newIdent) {
-        return new Reference(newIdent, granularity, type, columnPolicy, indexType, nullable, columnStoreDisabled);
+    public Reference getRelocated(ColumnIdent newColumn) {
+        return new Reference(
+            newColumn,
+            granularity,
+            type,
+            columnPolicy,
+            indexType,
+            nullable,
+            columnStoreDisabled
+        );
     }
+
 
     @Override
     public SymbolType symbolType() {
@@ -117,13 +123,8 @@ public class Reference extends Symbol {
         return type;
     }
 
-
-    public ReferenceIdent ident() {
-        return ident;
-    }
-
     public ColumnIdent column() {
-        return ident.columnIdent();
+        return column;
     }
 
     public RowGranularity granularity() {
@@ -154,7 +155,7 @@ public class Reference extends Symbol {
         return nullable == reference.nullable &&
                columnStoreDisabled == reference.columnStoreDisabled &&
                Objects.equals(type, reference.type) &&
-               Objects.equals(ident, reference.ident) &&
+               Objects.equals(column, reference.column) &&
                columnPolicy == reference.columnPolicy &&
                granularity == reference.granularity &&
                indexType == reference.indexType;
@@ -162,18 +163,18 @@ public class Reference extends Symbol {
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, ident, columnPolicy, granularity, indexType, nullable, columnStoreDisabled);
+        return Objects.hash(type, column, columnPolicy, granularity, indexType, nullable, columnStoreDisabled);
     }
 
     @Override
     public String representation() {
-        return "Ref{" + ident.tableIdent() + '.' + ident.columnIdent() + ", " + type + '}';
+        return "Ref{" + column + ", " + type + '}';
     }
 
     @Override
     public String toString() {
         MoreObjects.ToStringHelper helper = MoreObjects.toStringHelper(this)
-            .add("ident", ident)
+            .add("column", column)
             .add("granularity", granularity)
             .add("type", type);
         if (type.equals(DataTypes.OBJECT)) {
@@ -187,7 +188,7 @@ public class Reference extends Symbol {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        ident.writeTo(out);
+        column.writeTo(out);
         DataTypes.toStream(type, out);
         RowGranularity.toStream(granularity, out);
 

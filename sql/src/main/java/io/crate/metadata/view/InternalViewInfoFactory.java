@@ -26,8 +26,8 @@ import io.crate.analyze.ParameterContext;
 import io.crate.analyze.relations.AnalyzedRelation;
 import io.crate.analyze.relations.RelationAnalyzer;
 import io.crate.exceptions.ResourceUnknownException;
+import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.Reference;
-import io.crate.metadata.ReferenceIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.TransactionContext;
@@ -68,7 +68,7 @@ public class InternalViewInfoFactory implements ViewInfoFactory {
             final List<Reference> collectedColumns = new ArrayList<>(relation.fields().size());
             relation.fields()
                 .forEach(field -> collectedColumns.add(
-                    new Reference(new ReferenceIdent(ident, field.outputName()), RowGranularity.DOC, field.valueType())));
+                    new Reference(new ColumnIdent(field.outputName()), RowGranularity.DOC, field.valueType())));
             columns = collectedColumns;
         } catch (ResourceUnknownException e) {
             // Return ViewInfo with no columns in case the statement could not be analyzed,

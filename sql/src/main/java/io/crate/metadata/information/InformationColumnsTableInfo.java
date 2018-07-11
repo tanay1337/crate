@@ -24,12 +24,12 @@ package io.crate.metadata.information;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.crate.execution.engine.collect.NestableCollectExpression;
+import io.crate.expression.reference.information.ColumnContext;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.GeneratedReference;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.expressions.RowCollectExpressionFactory;
-import io.crate.expression.reference.information.ColumnContext;
 import io.crate.metadata.table.ColumnRegistrar;
 import io.crate.types.ByteType;
 import io.crate.types.DataTypes;
@@ -84,7 +84,7 @@ public class InformationColumnsTableInfo extends InformationTableInfo {
     }
 
     private static ColumnRegistrar columnRegistrar() {
-        return new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        return new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.TABLE_SCHEMA, DataTypes.STRING, false)
             .register(Columns.TABLE_NAME, DataTypes.STRING, false)
             .register(Columns.TABLE_CATALOG, DataTypes.STRING, false)
@@ -122,11 +122,11 @@ public class InformationColumnsTableInfo extends InformationTableInfo {
     public static Map<ColumnIdent, RowCollectExpressionFactory<ColumnContext>> expression() {
         return ImmutableMap.<ColumnIdent, RowCollectExpressionFactory<ColumnContext>>builder()
             .put(Columns.TABLE_SCHEMA,
-                () -> NestableCollectExpression.objToBytesRef(r -> r.info.ident().tableIdent().schema()))
+                () -> NestableCollectExpression.objToBytesRef(r -> r.tableInfo.ident().schema()))
             .put(Columns.TABLE_NAME,
-                () -> NestableCollectExpression.objToBytesRef(r -> r.info.ident().tableIdent().name()))
+                () -> NestableCollectExpression.objToBytesRef(r -> r.tableInfo.ident().name()))
             .put(Columns.TABLE_CATALOG,
-                () -> NestableCollectExpression.objToBytesRef(r -> r.info.ident().tableIdent().schema()))
+                () -> NestableCollectExpression.objToBytesRef(r -> r.tableInfo.ident().schema()))
             .put(Columns.COLUMN_NAME,
                 () -> NestableCollectExpression.objToBytesRef(r -> r.info.column().sqlFqn()))
             .put(Columns.ORDINAL_POSITION,

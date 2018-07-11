@@ -33,7 +33,6 @@ import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.IndexMappings;
 import io.crate.metadata.PartitionInfo;
 import io.crate.metadata.Reference;
-import io.crate.metadata.ReferenceIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.expressions.RowCollectExpressionFactory;
@@ -95,7 +94,7 @@ public class InformationPartitionsTableInfo extends InformationTableInfo {
     }
 
     private static ColumnRegistrar createColumnRegistrar() {
-        return new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        return new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.TABLE_SCHEMA, DataTypes.STRING)
             .register(InformationTablesTableInfo.Columns.TABLE_NAME, DataTypes.STRING)
             .register(Columns.PARTITION_IDENT, DataTypes.STRING)
@@ -146,7 +145,7 @@ public class InformationPartitionsTableInfo extends InformationTableInfo {
     @Override
     public Reference getReference(ColumnIdent column) {
         if (!column.isTopLevel() && column.name().equals(Columns.VALUES.name())) {
-            DynamicReference ref = new DynamicReference(new ReferenceIdent(ident(), column), rowGranularity());
+            DynamicReference ref = new DynamicReference(column, rowGranularity());
             ref.valueType(DataTypes.STRING);
             return ref;
         }

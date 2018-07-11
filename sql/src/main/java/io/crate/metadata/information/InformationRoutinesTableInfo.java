@@ -51,7 +51,7 @@ public class InformationRoutinesTableInfo extends InformationTableInfo {
     }
 
     private static ColumnRegistrar columnRegistrar() {
-        return new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        return new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.ROUTINE_NAME, DataTypes.STRING)
             .register(Columns.ROUTINE_TYPE, DataTypes.STRING)
             .register(Columns.ROUTINE_SCHEMA, DataTypes.STRING)

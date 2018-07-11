@@ -82,8 +82,8 @@ public abstract class AbstractTableRelation<T extends TableInfo> implements Anal
         Reference tmpRI = reference;
 
         while (!tmpCI.isTopLevel() && hasMatchingParent(tmpRI, IS_OBJECT_ARRAY)) {
-            if (DataTypes.isCollectionType(reference.valueType()) &&
-                Schemas.isDefaultOrCustomSchema(reference.ident().tableIdent().schema())) {
+            if (DataTypes.isCollectionType(reference.valueType())
+                && Schemas.isDefaultOrCustomSchema(tableInfo.ident().schema())) {
                 // Arrays inside object arrays cannot be queried to to the limitations of term queries.
                 // For querying system tables this limitation does not apply so we can allow it and not not need to
                 // raise here.
@@ -104,7 +104,7 @@ public abstract class AbstractTableRelation<T extends TableInfo> implements Anal
 
         if (dataType != null) {
             return new Reference(
-                reference.ident(),
+                reference.column(),
                 reference.granularity(),
                 dataType,
                 reference.columnPolicy(),

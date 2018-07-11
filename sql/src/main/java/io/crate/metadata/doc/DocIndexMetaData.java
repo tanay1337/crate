@@ -45,7 +45,6 @@ import io.crate.metadata.GeoReference;
 import io.crate.metadata.IndexMappings;
 import io.crate.metadata.IndexReference;
 import io.crate.metadata.Reference;
-import io.crate.metadata.ReferenceIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.TransactionContext;
@@ -230,17 +229,13 @@ public class DocIndexMetaData {
                                  @Nullable Integer treeLevels,
                                  @Nullable Double distanceErrorPct) {
         GeoReference info = new GeoReference(
-            refIdent(column),
+            column,
             tree,
             precision,
             treeLevels,
             distanceErrorPct);
         columnsBuilder.add(info);
         referencesBuilder.put(column, info);
-    }
-
-    private ReferenceIdent refIdent(ColumnIdent column) {
-        return new ReferenceIdent(ident, column);
     }
 
     private GeneratedReference newGeneratedColumnInfo(ColumnIdent column,
@@ -250,7 +245,7 @@ public class DocIndexMetaData {
                                                       String generatedExpression,
                                                       boolean isNotNull) {
         return new GeneratedReference(
-            refIdent(column), granularity(column), type, columnPolicy, indexType, generatedExpression, isNotNull);
+            column, granularity(column), type, columnPolicy, indexType, generatedExpression, isNotNull);
     }
 
     private RowGranularity granularity(ColumnIdent column) {
@@ -266,7 +261,7 @@ public class DocIndexMetaData {
                               Reference.IndexType indexType,
                               boolean nullable,
                               boolean columnStoreEnabled) {
-        return new Reference(refIdent(column), granularity(column), type, columnPolicy, indexType, nullable, columnStoreEnabled);
+        return new Reference(column, granularity(column), type, columnPolicy, indexType, nullable, columnStoreEnabled);
     }
 
     /**
@@ -431,7 +426,7 @@ public class DocIndexMetaData {
     }
 
     private IndexReference.Builder getOrCreateIndexBuilder(ColumnIdent ident) {
-        return indicesBuilder.computeIfAbsent(ident, k -> new IndexReference.Builder(refIdent(ident)));
+        return indicesBuilder.computeIfAbsent(ident, k -> new IndexReference.Builder(ident));
     }
 
     private ImmutableList<ColumnIdent> getPrimaryKey() {
@@ -567,7 +562,7 @@ public class DocIndexMetaData {
         indices = createIndexDefinitions();
         columns = ImmutableList.copyOf(columnsBuilder.build());
         partitionedByColumns = partitionedByColumnsBuilder.build();
-        DocSysColumns.forTable(ident, referencesBuilder::put);
+        DocSysColumns.forColumn(referencesBuilder::put);
         references = referencesBuilder.build();
         generatedColumnReferences = generatedColumnReferencesBuilder.build();
         primaryKey = getPrimaryKey();

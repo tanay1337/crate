@@ -35,7 +35,6 @@ import io.crate.metadata.GeneratedReference;
 import io.crate.metadata.IndexReference;
 import io.crate.metadata.PartitionName;
 import io.crate.metadata.Reference;
-import io.crate.metadata.ReferenceIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.Routing;
 import io.crate.metadata.RoutingProvider;
@@ -212,7 +211,7 @@ public class DocTableInfo implements TableInfo, ShardedTable, StoredTable {
     public Reference getReference(ColumnIdent columnIdent) {
         Reference reference = references.get(columnIdent);
         if (reference == null) {
-            return docColumn.getReference(ident(), columnIdent);
+            return docColumn.getReference(columnIdent);
         }
         return reference;
     }
@@ -442,9 +441,9 @@ public class DocTableInfo implements TableInfo, ShardedTable, StoredTable {
                 break;
         }
         if (parentIsIgnored) {
-            return new DynamicReference(new ReferenceIdent(ident(), ident), rowGranularity(), ColumnPolicy.IGNORED);
+            return new DynamicReference(ident, rowGranularity(), ColumnPolicy.IGNORED);
         }
-        return new DynamicReference(new ReferenceIdent(ident(), ident), rowGranularity());
+        return new DynamicReference(ident, rowGranularity());
     }
 
     @Override

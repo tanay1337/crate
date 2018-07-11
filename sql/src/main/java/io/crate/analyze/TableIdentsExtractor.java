@@ -91,7 +91,7 @@ public class TableIdentsExtractor {
 
         @Override
         public Collection<RelationName> visitReference(Reference symbol, Void context) {
-            return Collections.singletonList(symbol.ident().tableIdent());
+            return Collections.emptyList();
         }
 
         @Override

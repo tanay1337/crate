@@ -1321,7 +1321,7 @@ public class LuceneQueryBuilder {
                     if (ref.column().equals(DocSysColumns.UID) && context.queryShardContext().getIndexSettings().isSingleType()) {
                         return new Function(
                             function.info(),
-                            ImmutableList.of(DocSysColumns.forTable(ref.ident().tableIdent(), DocSysColumns.ID), right)
+                            ImmutableList.of(DocSysColumns.forColumn(DocSysColumns.ID), right)
                         );
                     } else {
                         String unsupportedMessage = context.unsupportedMessage(ref.column().name());

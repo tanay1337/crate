@@ -137,6 +137,8 @@ public class FetchRowInputSymbolVisitor extends BaseImplementationSymbolVisitor<
         public Input<?> allocateInput(FetchReference fetchReference) {
             FetchSource fs = null;
             int fetchIdx = 0;
+            /*
+            TODO
             for (Map.Entry<RelationName, FetchSource> entry : fetchSources.entrySet()) {
                 if (entry.getKey().equals(fetchReference.ref().ident().tableIdent())) {
                     fs = entry.getValue();
@@ -151,6 +153,7 @@ public class FetchRowInputSymbolVisitor extends BaseImplementationSymbolVisitor<
                     fetchIdx += entry.getValue().fetchIdCols().size();
                 }
             }
+            */
             assert fs != null : "fs must not be null";
             Row row = fetchRows[fetchIdx];
             int idx = 0;

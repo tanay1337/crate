@@ -143,9 +143,6 @@ public final class SQLPrinter {
                     return quoteQualifiedName(field.relation().getQualifiedName()) + "." + Identifiers.quoteIfNeeded(field.outputName());
                 }
             }
-            if (symbol instanceof Reference && "".equals(((Reference) symbol).ident().tableIdent().schema())) {
-                return ((Reference) symbol).column().sqlFqn();
-            }
             return symbolPrinter.printQualified(symbol);
         }
 

@@ -213,13 +213,13 @@ public final class CopyStatementPlanner {
         boolean isReturnSummary = copyFrom instanceof CopyFromReturnSummaryAnalyzedStatement;
         if (isReturnSummary) {
             final InputColumn sourceUriSymbol = new InputColumn(toCollect.size(), DataTypes.STRING);
-            toCollect.add(SourceUriExpression.getReferenceForRelation(table.ident()));
+            toCollect.add(SourceUriExpression.getReferenceForRelation());
 
             final InputColumn sourceUriFailureSymbol = new InputColumn(toCollect.size(), DataTypes.STRING);
-            toCollect.add(SourceUriFailureExpression.getReferenceForRelation(table.ident()));
+            toCollect.add(SourceUriFailureExpression.getReferenceForRelation());
 
             final InputColumn lineNumberSymbol = new InputColumn(toCollect.size(), DataTypes.LONG);
-            toCollect.add(SourceLineNumberExpression.getReferenceForRelation(table.ident()));
+            toCollect.add(SourceLineNumberExpression.getReferenceForRelation());
 
             List<? extends Symbol> fields = ((CopyFromReturnSummaryAnalyzedStatement) copyFrom).fields();
             projectionOutputs = InputColumns.create(fields, new InputColumns.SourceSymbols(fields));

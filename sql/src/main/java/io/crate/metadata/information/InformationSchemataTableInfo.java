@@ -50,7 +50,7 @@ public class InformationSchemataTableInfo extends InformationTableInfo {
     }
 
     private static ColumnRegistrar columnRegistrar() {
-        return new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        return new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.SCHEMA_NAME, DataTypes.STRING);
     }
 

@@ -25,25 +25,24 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import io.crate.Version;
-import io.crate.expression.symbol.Literal;
 import io.crate.analyze.where.DocKeys;
 import io.crate.collections.Lists2;
 import io.crate.core.collections.Sorted;
 import io.crate.data.Bucket;
 import io.crate.data.Buckets;
 import io.crate.data.Row;
-import io.crate.metadata.ColumnIdent;
-import io.crate.metadata.Functions;
-import io.crate.metadata.Reference;
-import io.crate.metadata.ReferenceIdent;
-import io.crate.metadata.RelationName;
-import io.crate.metadata.RowGranularity;
-import io.crate.metadata.Schemas;
 import io.crate.execution.engine.aggregation.impl.AggregationImplModule;
 import io.crate.expression.operator.OperatorModule;
 import io.crate.expression.predicate.PredicateModule;
 import io.crate.expression.scalar.ScalarFunctionModule;
+import io.crate.expression.symbol.Literal;
 import io.crate.expression.tablefunctions.TableFunctionModule;
+import io.crate.metadata.ColumnIdent;
+import io.crate.metadata.Functions;
+import io.crate.metadata.Reference;
+import io.crate.metadata.RelationName;
+import io.crate.metadata.RowGranularity;
+import io.crate.metadata.Schemas;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
 import org.apache.lucene.util.BytesRef;
@@ -168,16 +167,12 @@ public class TestingHelpers {
     }
 
     public static Reference createReference(String columnName, DataType dataType) {
-        return createReference("dummyTable", new ColumnIdent(columnName), dataType);
+        return createReference(new ColumnIdent(columnName), dataType);
     }
 
     public static Reference createReference(ColumnIdent columnIdent, DataType dataType) {
-        return createReference("dummyTable", columnIdent, dataType);
-    }
-
-    public static Reference createReference(String tableName, ColumnIdent columnIdent, DataType dataType) {
         return new Reference(
-            new ReferenceIdent(new RelationName(Schemas.DOC_SCHEMA_NAME, tableName), columnIdent),
+            columnIdent,
             RowGranularity.DOC,
             dataType);
     }
@@ -278,7 +273,7 @@ public class TestingHelpers {
 
     public static Reference refInfo(String fqColumnName, DataType dataType, RowGranularity rowGranularity, String... nested) {
         String[] parts = fqColumnName.split("\\.");
-        ReferenceIdent refIdent;
+        ColumnIdent columnIdent;
 
         List<String> nestedParts = null;
         if (nested.length > 0) {
@@ -286,7 +281,7 @@ public class TestingHelpers {
         }
         switch (parts.length) {
             case 2:
-                refIdent = new ReferenceIdent(new RelationName(Schemas.DOC_SCHEMA_NAME, parts[0]), parts[1], nestedParts);
+                columnIdent = new ReferenceIdent(new RelationName(Schemas.DOC_SCHEMA_NAME, parts[0]), parts[1], nestedParts);
                 break;
             case 3:
                 refIdent = new ReferenceIdent(new RelationName(parts[0], parts[1]), parts[2], nestedParts);

@@ -71,8 +71,6 @@ import static io.crate.execution.engine.collect.NestableCollectExpression.forFun
 
 public class SysNodesTableInfo extends StaticTableInfo {
 
-    public static final String SYS_COL_NAME = "_node";
-
     public static final RelationName IDENT = new RelationName(SysSchemaInfo.NAME, "nodes");
     private static final ImmutableList<ColumnIdent> PRIMARY_KEY = ImmutableList.of(new ColumnIdent("id"));
 
@@ -420,7 +418,7 @@ public class SysNodesTableInfo extends StaticTableInfo {
     }
 
     public SysNodesTableInfo() {
-        super(IDENT, new ColumnRegistrar(IDENT, GRANULARITY)
+        super(IDENT, new ColumnRegistrar(GRANULARITY)
                 .register(Columns.ID, DataTypes.STRING)
                 .register(Columns.NAME, DataTypes.STRING)
                 .register(Columns.HOSTNAME, DataTypes.STRING)

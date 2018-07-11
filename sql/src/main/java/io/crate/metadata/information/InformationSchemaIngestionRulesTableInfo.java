@@ -49,7 +49,7 @@ public class InformationSchemaIngestionRulesTableInfo extends InformationTableIn
     }
 
     private static ColumnRegistrar columnRegistrar() {
-        return new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        return new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.RULE_NAME, DataTypes.STRING)
             .register(Columns.SOURCE_IDENT, DataTypes.STRING)
             .register(Columns.TARGET_TABLE, DataTypes.STRING)

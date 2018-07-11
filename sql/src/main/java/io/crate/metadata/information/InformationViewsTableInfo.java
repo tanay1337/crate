@@ -54,7 +54,7 @@ public class InformationViewsTableInfo extends InformationTableInfo {
     }
 
     private static ColumnRegistrar buildColumnRegistrar() {
-        return new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        return new ColumnRegistrar(RowGranularity.DOC)
             .register(Columns.TABLE_CATALOG, DataTypes.STRING)
             .register(Columns.TABLE_SCHEMA, DataTypes.STRING)
             .register(Columns.TABLE_NAME, DataTypes.STRING)

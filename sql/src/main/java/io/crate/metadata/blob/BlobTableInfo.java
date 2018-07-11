@@ -29,7 +29,6 @@ import io.crate.analyze.TableParameterInfo;
 import io.crate.analyze.WhereClause;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.Reference;
-import io.crate.metadata.ReferenceIdent;
 import io.crate.metadata.RelationName;
 import io.crate.metadata.Routing;
 import io.crate.metadata.RoutingProvider;
@@ -158,8 +157,7 @@ public class BlobTableInfo implements TableInfo, ShardedTable, StoredTable {
 
     private void registerStaticColumns() {
         for (Tuple<String, DataType> column : STATIC_COLUMNS) {
-            Reference ref = new Reference(
-                new ReferenceIdent(ident(), column.v1(), null), RowGranularity.DOC, column.v2());
+            Reference ref = new Reference(new ColumnIdent(column.v1()), RowGranularity.DOC, column.v2());
             assert ref.column().isTopLevel() : "only top-level columns should be added to columns list";
             columns.add(ref);
             INFOS.put(ref.column(), ref);

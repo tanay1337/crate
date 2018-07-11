@@ -87,7 +87,7 @@ public class PgTypeTable extends StaticTableInfo {
     }
 
     PgTypeTable() {
-        super(IDENT, new ColumnRegistrar(IDENT, RowGranularity.DOC)
+        super(IDENT, new ColumnRegistrar(RowGranularity.DOC)
                 .register(Columns.OID.name(), DataTypes.INTEGER, null)
                 .register(Columns.TYPNAME.name(), DataTypes.STRING, null)
                 .register(Columns.TYPDELIM.name(), DataTypes.STRING, null)

@@ -40,12 +40,12 @@ import java.util.List;
 public class IndexReference extends Reference {
 
     public static class Builder {
-        private final ReferenceIdent ident;
+        private final ColumnIdent ident;
         private IndexType indexType = IndexType.ANALYZED;
         private List<Reference> columns = new ArrayList<>();
         private String analyzer = null;
 
-        public Builder(ReferenceIdent ident) {
+        public Builder(ColumnIdent ident) {
             Preconditions.checkNotNull(ident, "ident is null");
             this.ident = ident;
         }
@@ -84,12 +84,12 @@ public class IndexReference extends Reference {
         }
     }
 
-    public IndexReference(ReferenceIdent ident,
+    public IndexReference(ColumnIdent column,
                           IndexType indexType,
                           List<Reference> columns,
                           @Nullable String analyzer) {
-        super(ident, RowGranularity.DOC, DataTypes.STRING, ColumnPolicy.DYNAMIC, indexType, false, true);
-        this.columns = MoreObjects.firstNonNull(columns, Collections.<Reference>emptyList());
+        super(column, RowGranularity.DOC, DataTypes.STRING, ColumnPolicy.DYNAMIC, indexType, false, true);
+        this.columns = MoreObjects.firstNonNull(columns, Collections.emptyList());
         this.analyzer = analyzer;
     }
 

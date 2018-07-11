@@ -180,7 +180,7 @@ class Collect extends ZeroInputPlan {
         if (fetchable.isEmpty()) {
             return toCollect;
         }
-        Reference fetchIdRef = DocSysColumns.forTable(relationName, DocSysColumns.FETCHID);
+        Reference fetchIdRef = DocSysColumns.forColumn(DocSysColumns.FETCHID);
         ArrayList<Symbol> preFetchSymbols = new ArrayList<>(usedColumns.size() + 1);
         preFetchSymbols.add(fetchIdRef);
         preFetchSymbols.addAll(usedColumns);

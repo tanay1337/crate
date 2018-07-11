@@ -31,7 +31,6 @@ import io.crate.expression.InputFactory;
 import io.crate.expression.symbol.Literal;
 import io.crate.expression.symbol.Symbol;
 import io.crate.metadata.Reference;
-import io.crate.metadata.ReferenceIdent;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.sys.SysNodesTableInfo;
 import io.crate.test.integration.CrateUnitTest;
@@ -75,13 +74,13 @@ public class NodeStatsTest extends CrateUnitTest {
     @Before
     public void prepare() {
         idRef = new Reference(
-            new ReferenceIdent(SysNodesTableInfo.IDENT, SysNodesTableInfo.Columns.ID),
+            SysNodesTableInfo.Columns.ID,
             RowGranularity.DOC, DataTypes.STRING);
         nameRef = new Reference(
-            new ReferenceIdent(SysNodesTableInfo.IDENT, SysNodesTableInfo.Columns.ID),
+            SysNodesTableInfo.Columns.ID,
             RowGranularity.DOC, DataTypes.STRING);
         hostnameRef = new Reference(
-            new ReferenceIdent(SysNodesTableInfo.IDENT, SysNodesTableInfo.Columns.HOSTNAME),
+            SysNodesTableInfo.Columns.HOSTNAME,
             RowGranularity.DOC, DataTypes.STRING);
         collectPhase = mock(RoutedCollectPhase.class);
         when(collectPhase.where()).thenReturn(Literal.BOOLEAN_FALSE);
