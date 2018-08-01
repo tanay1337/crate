@@ -28,7 +28,6 @@ import io.crate.data.BatchIterators;
 import io.crate.data.InMemoryBatchIterator;
 import io.crate.data.Input;
 import io.crate.data.Row;
-import io.crate.data.Row1;
 import io.crate.execution.engine.aggregation.impl.AggregationImplModule;
 import io.crate.execution.engine.aggregation.impl.SumAggregation;
 import io.crate.execution.engine.collect.CollectExpression;
@@ -69,6 +68,7 @@ public class GroupingLongCollectorBenchmark {
     private BatchIterator<Row> rowsIterator;
     private List<Row> rows;
     private GroupBySingleLongCollector groupBySumSingleLongCollector;
+    private GroupBySingleLongPrimitiveCollector groupBySumSingleLongPrimitiveCollector;
 
     @Setup
     public void createGroupingCollector() {
@@ -78,16 +78,31 @@ public class GroupingLongCollectorBenchmark {
             (AggregationFunction) functions.getBuiltin(SumAggregation.NAME, Arrays.asList(DataTypes.INTEGER));
         groupBySumCollector = createGroupBySumCollector(sumAgg);
         groupBySumSingleLongCollector = createOptimizedCollector(sumAgg);
+        groupBySumSingleLongPrimitiveCollector = createPrimitiveOptimizedCollector(sumAgg);
 
         rows = new ArrayList<>(20_000_000);
         for (int i = 0; i < 20_000_000; i++) {
-            rows.add(new Row1((long) i % 200));
+            rows.add(new LongRow((long) i % 200));
         }
     }
 
     private GroupBySingleLongCollector createOptimizedCollector(AggregationFunction sumAgg) {
         InputCollectExpression keyInput = new InputCollectExpression(0);
         return new GroupBySingleLongCollector(
+            new CollectExpression[] { keyInput },
+            AggregateMode.ITER_FINAL,
+            new AggregationFunction[] { sumAgg },
+            new Input[][] { new Input[] { keyInput }},
+            RAM_ACCOUNTING_CONTEXT,
+            (Input<Long>)(Input) keyInput,
+            Version.CURRENT,
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
+    }
+
+    private GroupBySingleLongPrimitiveCollector createPrimitiveOptimizedCollector(AggregationFunction sumAgg) {
+        InputCollectExpression keyInput = new InputCollectExpression(0);
+        return new GroupBySingleLongPrimitiveCollector(
             new CollectExpression[] { keyInput },
             AggregateMode.ITER_FINAL,
             new AggregationFunction[] { sumAgg },
@@ -127,5 +142,44 @@ public class GroupingLongCollectorBenchmark {
     public void measureGroupBySumLongOptimized(Blackhole blackhole) throws Exception {
         rowsIterator = InMemoryBatchIterator.of(rows, SENTINEL);
         blackhole.consume(BatchIterators.collect(rowsIterator, groupBySumSingleLongCollector).get());
+    }
+
+    @Benchmark
+    public void measureGroupBySumLongPrimitiveOptimized(Blackhole blackhole) throws Exception {
+        rowsIterator = InMemoryBatchIterator.of(rows, SENTINEL);
+        blackhole.consume(BatchIterators.collect(rowsIterator, groupBySumSingleLongPrimitiveCollector).get());
+    }
+
+    private static class LongRow implements Row {
+        private final long val;
+
+        LongRow(long val) {
+            this.val = val;
+        }
+
+        @Override
+        public int numColumns() {
+            return 1;
+        }
+
+        @Override
+        public Object get(int index) {
+            return val;
+        }
+
+        @Override
+        public Object[] materialize() {
+            return new Object[] { val };
+        }
+
+        @Override
+        public boolean hasValue(int index) {
+            return true;
+        }
+
+        @Override
+        public long getLong(int index) {
+            return val;
+        }
     }
 }

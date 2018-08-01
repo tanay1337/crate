@@ -71,4 +71,12 @@ public interface Row {
      * Returns a materialized view of this row.
      */
     Object[] materialize();
+
+    default boolean hasValue(int index) {
+        return get(index) != null;
+    }
+
+    default long getLong(int index) {
+        return ((Number) get(index)).longValue();
+    }
 }
