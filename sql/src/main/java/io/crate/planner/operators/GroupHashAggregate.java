@@ -136,7 +136,7 @@ public class GroupHashAggregate extends OneInputPlan {
             plannerContext,
             executionPlan,
             Collections.singletonList(toFinal),
-            executionPlan.resultDescription().nodeIds()
+            Collections.singletonList(plannerContext.handlerNode())
         );
     }
 
