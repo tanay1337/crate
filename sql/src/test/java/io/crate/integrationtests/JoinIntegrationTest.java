@@ -22,6 +22,7 @@
 package io.crate.integrationtests;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import io.crate.data.CollectionBucket;
 import io.crate.exceptions.SQLExceptions;
 import io.crate.execution.engine.sort.OrderingByPosition;
@@ -607,6 +608,7 @@ public class JoinIntegrationTest extends SQLTransportIntegrationTest {
     }
 
     @Test
+    @Repeat (iterations = 100)
     public void testJoinWithIndexMissingExceptions() throws Throwable {
         execute("create table t1 (x int)");
         execute("create table t2 (x int)");

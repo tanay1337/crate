@@ -39,8 +39,11 @@ public class ListenableRowConsumer implements RowConsumer {
         if (failure == null) {
             delegate.accept(new ListenableBatchIterator<>(iterator, completionFuture), null);
         } else {
-            delegate.accept(null, failure);
-            completionFuture.completeExceptionally(failure);
+            try {
+                delegate.accept(null, failure);
+            } finally {
+                completionFuture.completeExceptionally(failure);
+            }
         }
     }
 

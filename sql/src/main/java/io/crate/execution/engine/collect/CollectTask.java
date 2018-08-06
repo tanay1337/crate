@@ -21,21 +21,19 @@
 
 package io.crate.execution.engine.collect;
 
-import com.carrotsearch.hppc.IntObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.annotations.VisibleForTesting;
 import io.crate.breaker.RamAccountingContext;
 import io.crate.data.BatchIterator;
 import io.crate.data.ListenableRowConsumer;
 import io.crate.data.Row;
 import io.crate.data.RowConsumer;
-import io.crate.exceptions.Exceptions;
 import io.crate.execution.dsl.phases.CollectPhase;
 import io.crate.execution.dsl.phases.RoutedCollectPhase;
 import io.crate.execution.jobs.CompletionState;
 import io.crate.execution.jobs.SharedShardContexts;
 import io.crate.execution.jobs.Task;
 import io.crate.metadata.RowGranularity;
+import io.netty.util.collection.IntObjectHashMap;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -71,16 +69,18 @@ public class CollectTask implements Task {
         this.sharedShardContexts = sharedShardContexts;
         this.consumer = new ListenableRowConsumer(consumer);
         this.completionFuture = this.consumer.completionFuture().handle((result, ex) -> {
-            closeSearchContexts();
+            searchers.values().forEach(Engine.Searcher::close);
+            searchers.clear();
             CompletionState completionState = new CompletionState();
             completionState.bytesUsed(queryPhaseRamAccountingContext.totalBytes());
             queryPhaseRamAccountingContext.close();
             currentState.set(State.STOPPED);
             if (ex == null) {
                 return completionState;
+            } else if (ex instanceof RuntimeException) {
+                throw (RuntimeException) ex;
             } else {
-                Exceptions.rethrowUnchecked(ex);
-                return null;
+                throw new RuntimeException(ex);
             }
         });
         this.threadPoolName = threadPoolName(collectPhase);
@@ -95,20 +95,10 @@ public class CollectTask implements Task {
             }
             Engine.Searcher replacedSearcher = searchers.put(searcherId, searcher);
             if (replacedSearcher != null) {
-                replacedSearcher.close();
-                searcher.close();
+                searchers.values().forEach(Engine.Searcher::close);
                 throw new IllegalArgumentException(String.format(Locale.ENGLISH,
                     "ShardCollectContext for %d already added", searcherId));
             }
-        }
-    }
-
-    private void closeSearchContexts() {
-        synchronized (searchers) {
-            for (ObjectCursor<Engine.Searcher> cursor : searchers.values()) {
-                cursor.value.close();
-            }
-            searchers.clear();
         }
     }
 
@@ -129,7 +119,7 @@ public class CollectTask implements Task {
                "id=" + collectPhase.phaseId() +
                ", sharedContexts=" + sharedShardContexts +
                ", consumer=" + consumer +
-               ", searchContexts=" + searchers.keys() +
+               ", searchContexts=" + searchers.keySet() +
                ", state=" + currentState.get() +
                '}';
     }
@@ -156,10 +146,15 @@ public class CollectTask implements Task {
         State prevState;
         synchronized (searchers) {
             prevState = currentState.getAndSet(State.STOPPED);
+            searchers.values().forEach(Engine.Searcher::close);
         }
         switch (prevState) {
             case CREATED:
-                consumer.accept(null, throwable);
+                try {
+                    consumer.accept(null, throwable);
+                } catch (Throwable t) {
+                    throw t;
+                }
                 return;
 
             case RUNNING:
