@@ -25,6 +25,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import io.crate.breaker.RamAccountingContext;
 import io.crate.data.BatchIterator;
 import io.crate.data.Row;
+import io.crate.exceptions.JobKilledException;
 import io.crate.execution.dsl.phases.RoutedCollectPhase;
 import io.crate.execution.jobs.SharedShardContexts;
 import io.crate.metadata.Routing;
@@ -119,7 +120,7 @@ public class CollectTaskTest extends RandomizedTest {
         when(collectOperationMock.createIterator(eq(collectPhase), anyBoolean(), eq(jobCtx)))
             .thenReturn(batchIterator);
         jobCtx.start();
-        jobCtx.kill(null);
+        jobCtx.kill(new JobKilledException());
 
         verify(batchIterator, times(1)).kill(any(InterruptedException.class));
         verify(mock1, times(1)).close();
