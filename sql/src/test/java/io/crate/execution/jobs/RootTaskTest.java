@@ -147,9 +147,11 @@ public class RootTaskTest extends CrateUnitTest {
         RootTask rootTask = builder.build();
 
         Exception failure = new Exception("failure!");
-        collectChildTask.close(failure);
+        collectChildTask.kill(failure);
+        assertThat(collectChildTask.completionFuture().isCompletedExceptionally(), is(true));
+
         // other contexts must be killed with same failure
-        verify(distResultRXTask, times(1)).innerKill(failure);
+        verify(distResultRXTask, times(1)).innerKill(any(Exception.class));
 
         final Field tasksByPhaseId = RootTask.class.getDeclaredField("tasksByPhaseId");
         tasksByPhaseId.setAccessible(true);

@@ -21,15 +21,17 @@
 
 package io.crate.execution.engine.collect;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import io.crate.breaker.RamAccountingContext;
 import io.crate.data.BatchIterator;
+import io.crate.data.InMemoryBatchIterator;
 import io.crate.data.Row;
+import io.crate.data.SentinelRow;
 import io.crate.exceptions.JobKilledException;
 import io.crate.execution.dsl.phases.RoutedCollectPhase;
 import io.crate.execution.jobs.SharedShardContexts;
 import io.crate.metadata.Routing;
 import io.crate.metadata.RowGranularity;
+import io.crate.test.integration.CrateUnitTest;
 import io.crate.testing.TestingRowConsumer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,9 +40,6 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -48,7 +47,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class CollectTaskTest extends RandomizedTest {
+public class CollectTaskTest extends CrateUnitTest {
 
     private CollectTask collectTask;
     private RoutedCollectPhase collectPhase;
@@ -57,7 +56,7 @@ public class CollectTaskTest extends RandomizedTest {
     private RamAccountingContext ramAccountingContext = mock(RamAccountingContext.class);
 
     @Before
-    public void setUp() throws Exception {
+    public void setupTask() throws Exception {
         localNodeId = "dummyLocalNodeId";
         collectPhase = Mockito.mock(RoutedCollectPhase.class);
         Routing routing = Mockito.mock(Routing.class);
@@ -88,14 +87,14 @@ public class CollectTaskTest extends RandomizedTest {
     }
 
     @Test
-    public void testInnerCloseClosesSearchContexts() throws Exception {
+    public void testKillClosesSearchContexts() throws Exception {
         Engine.Searcher mock1 = mock(Engine.Searcher.class);
         Engine.Searcher mock2 = mock(Engine.Searcher.class);
 
         collectTask.addSearcher(1, mock1);
         collectTask.addSearcher(2, mock2);
 
-        collectTask.innerClose(null);
+        collectTask.kill(new JobKilledException());
 
         verify(mock1, times(1)).close();
         verify(mock2, times(1)).close();
@@ -104,27 +103,29 @@ public class CollectTaskTest extends RandomizedTest {
 
     @Test
     public void testKillOnJobCollectContextPropagatesToCrateCollectors() throws Exception {
-        Engine.Searcher mock1 = mock(Engine.Searcher.class);
+        Engine.Searcher mockedSearcher = mock(Engine.Searcher.class);
         MapSideDataCollectOperation collectOperationMock = mock(MapSideDataCollectOperation.class);
 
+        TestingRowConsumer consumer = new TestingRowConsumer();
         CollectTask jobCtx = new CollectTask(
             collectPhase,
             collectOperationMock,
             ramAccountingContext,
-            new TestingRowConsumer(),
+            consumer,
             mock(SharedShardContexts.class));
 
-        jobCtx.addSearcher(1, mock1);
+        jobCtx.addSearcher(1, mockedSearcher);
 
-        BatchIterator<Row> batchIterator = mock(BatchIterator.class);
+        BatchIterator<Row> batchIterator = InMemoryBatchIterator.empty(SentinelRow.SENTINEL);
         when(collectOperationMock.createIterator(eq(collectPhase), anyBoolean(), eq(jobCtx)))
             .thenReturn(batchIterator);
-        jobCtx.start();
         jobCtx.kill(new JobKilledException());
 
-        verify(batchIterator, times(1)).kill(any(InterruptedException.class));
-        verify(mock1, times(1)).close();
+        verify(mockedSearcher, times(1)).close();
         verify(ramAccountingContext, times(1)).close();
+
+        expectedException.expectMessage("Job killed");
+        consumer.getResult();
     }
 
     @Test

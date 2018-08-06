@@ -27,6 +27,27 @@ import io.crate.data.Killable;
 public interface Task extends CompletionListenable<CompletionState>, Killable {
 
     /**
+     * States a task can be in.
+     *
+     * Allowed state transitions:
+     *
+     * <pre>
+     *            start()
+     *  Created ---------> Running
+     *      |                |
+     *      |                | kill() or successfully running to completion
+     *      |                V
+     *      +-----------> Stopped
+     *         kill()
+     * </pre>
+     */
+    enum State {
+        CREATED,
+        RUNNING,
+        STOPPED
+    }
+
+    /**
      * In the start phase implementations of this interface are required to start any executors.
      * <p>
      * In this phase failures must not be propagated to downstream phases directly.
