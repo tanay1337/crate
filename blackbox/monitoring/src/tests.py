@@ -31,9 +31,10 @@ from crate.client import connect
 from testutils.ports import GLOBAL_PORT_POOL
 from testutils.paths import crate_path
 from crate.testing.layer import CrateLayer
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, check_output, STDOUT
 from urllib.request import urlretrieve
 
+JAVA_HOME = os.environ.get('JAVA_HOME', '/usr/lib/jvm/java-8-openjdk/')
 JMX_PORT = GLOBAL_PORT_POOL.get()
 CRATE_HTTP_PORT = GLOBAL_PORT_POOL.get()
 JMX_PORT_ENTERPRISE_DISABLED = GLOBAL_PORT_POOL.get()
@@ -53,7 +54,6 @@ log.addHandler(ch)
 
 class JmxTermClient(object):
 
-    JAVA_HOME = os.environ.get('JAVA_HOME', '/usr/lib/jvm/java-8-openjdk/')
     JMX_TERM_VERSION = '1.0-alpha-4'
     JMX_TERM_SOURCE = "https://sourceforge.net/projects/cyclops-group/files/" \
                       "jmxterm/{version}/jmxterm-{version}-uber.jar" \
@@ -85,7 +85,7 @@ class JmxTermClient(object):
                 '-v', 'silent', '-n'
             ],
             stdin=PIPE, stdout=PIPE, stderr=PIPE,
-            env={'JAVA_HOME': JmxTermClient.JAVA_HOME},
+            env={'JAVA_HOME': JAVA_HOME},
             universal_newlines=True
         )
 
@@ -227,11 +227,19 @@ class ThreadPoolsBeanTest(unittest.TestCase):
 class CircuitBreakersBeanTest(unittest.TestCase):
 
     def test_parent_breaker(self):
+        java_version_output = check_output([JAVA_HOME + '/bin/java', '-version'], stderr=STDOUT)
+        major, minor, _ = str(java_version_output).splitlines()[0].split()[2].split("\\n")[0].split('_')[0].split('.')
+
+        if major + '.' + minor == '1.8':
+            parent_limit = '727213670'
+        else:
+            parent_limit = '726571417'
+
         jmx_client = JmxTermClient(JMX_PORT)
         stdout, stderr = jmx_client.query_jmx(
             'io.crate.monitoring:type=CircuitBreakers', 'Parent')
         self.assertEqual(stdout, '{ \n'
-                                 '  limit = 726571417;\n'
+                                 '  limit = ' + parent_limit + ';\n'
                                  '  name = parent;\n'
                                  '  overhead = 1.0;\n'
                                  '  trippedCount = 0;\n'
