@@ -91,12 +91,4 @@ public interface PageBucketReceiver extends CompletionListenable, Killable {
      * {@link #releasePageResultListeners}) and dependant clients notified.
      */
     CompletableFuture<?> completionFuture();
-
-    /**
-     * After the buckets have been received (or the the entire "page") this will actually start the consumption of the
-     * rows. It will usually be called internally by the implementations and is exposed in case there are times where
-     * the consumption can start immediately (eg. we expect 0 buckets)
-     */
-    void consumeRows();
-
 }

@@ -60,6 +60,10 @@ public class IncrementalPageBucketReceiver<T> implements PageBucketReceiver {
         this.consumer = rowConsumer;
         this.streamers = streamers;
         this.remainingUpstreams = new AtomicInteger(upstreamsCount);
+        if (upstreamsCount == 0) {
+            consumeRows();
+            processingFuture.complete(null);
+        }
     }
 
     @Override
@@ -106,8 +110,7 @@ public class IncrementalPageBucketReceiver<T> implements PageBucketReceiver {
         return processingFuture;
     }
 
-    @Override
-    public void consumeRows() {
+    private void consumeRows() {
         consumer.accept(InMemoryBatchIterator.of(finisher.apply(state), SentinelRow.SENTINEL), lastThrowable);
     }
 

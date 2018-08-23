@@ -105,6 +105,10 @@ public class CumulativePageBucketReceiver implements PageBucketReceiver {
             () -> processingFuture.complete(null)
         );
         traceEnabled = logger.isTraceEnabled();
+
+        if (numBuckets == 0) {
+            mergeAndTriggerConsumer();
+        }
     }
 
     @Override
@@ -311,8 +315,7 @@ public class CumulativePageBucketReceiver implements PageBucketReceiver {
         return processingFuture;
     }
 
-    @Override
-    public void consumeRows() {
+    private void consumeRows() {
         consumer.accept(batchPagingIterator, lastThrowable);
     }
 

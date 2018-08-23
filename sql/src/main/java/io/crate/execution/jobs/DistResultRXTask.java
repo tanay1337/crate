@@ -76,16 +76,6 @@ public class DistResultRXTask extends AbstractTask implements DownstreamRXTask {
     }
 
     @Override
-    protected void innerStart() {
-        // E.g. If the upstreamPhase is a collectPhase for a partitioned table without any partitions
-        // there won't be any executionNodes for that collectPhase
-        // -> no upstreams -> just finish
-        if (numBuckets == 0) {
-            pageBucketReceiver.consumeRows();
-        }
-    }
-
-    @Override
     public String name() {
         return name;
     }
