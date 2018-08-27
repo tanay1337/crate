@@ -32,7 +32,10 @@ import io.crate.execution.jobs.PageBucketReceiver;
 import io.crate.execution.jobs.PageResultListener;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -45,18 +48,22 @@ public class IncrementalPageBucketReceiver<T> implements PageBucketReceiver {
     private final T state;
     private final AtomicInteger remainingUpstreams;
     private final CompletableFuture<Iterable<Row>> processingFuture = new CompletableFuture<>();
+    private final Executor executor;
     private final Streamer<?>[] streamers;
 
     private volatile Throwable lastThrowable = null;
     private final BatchIterator<Row> lazyBatchIterator;
+    private List<CompletableFuture<?>> accumulatingTasks = new ArrayList<>();
 
     public IncrementalPageBucketReceiver(Collector<Row, T, Iterable<Row>> collector,
                                          RowConsumer rowConsumer,
+                                         Executor executor,
                                          Streamer<?>[] streamers,
                                          int upstreamsCount) {
         this.state = collector.supplier().get();
         this.accumulator = collector.accumulator();
         this.finisher = collector.finisher();
+        this.executor = executor;
         this.streamers = streamers;
         this.remainingUpstreams = new AtomicInteger(upstreamsCount);
         lazyBatchIterator = CollectingBatchIterator.newInstance(
@@ -69,19 +76,24 @@ public class IncrementalPageBucketReceiver<T> implements PageBucketReceiver {
     @Override
     public void setBucket(int bucketIdx, Bucket rows, boolean isLast, PageResultListener pageResultListener) {
         pageResultListener.needMore(!isLast);
-        synchronized (state) {
-            try {
-                for (Row row : rows) {
-                    accumulator.accept(state, row);
+        accumulatingTasks.add(CompletableFuture.supplyAsync(() -> {
+            synchronized (state) {
+                try {
+                    for (Row row : rows) {
+                        accumulator.accept(state, row);
+                    }
+                } catch (Throwable e) {
+                    lastThrowable = e;
+                    throw e;
                 }
-            } catch (Throwable e) {
-                lastThrowable = e;
             }
-        }
+            return null;
+        }, executor));
 
         if (isLast) {
             if (remainingUpstreams.decrementAndGet() == 0) {
-                consumeRows();
+                CompletableFuture.allOf(accumulatingTasks.toArray(new CompletableFuture[0]))
+                    .whenComplete((r, t) -> consumeRows());
             }
         }
     }
