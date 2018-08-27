@@ -140,15 +140,16 @@ public class RootTaskTest extends CrateUnitTest {
             2,
             MoreExecutors.directExecutor(),
             new Streamer[]{IntegerType.INSTANCE.streamer()},
-            batchConsumer,
             PassThroughPagingIterator.oneShot(),
             1);
         DistResultRXTask distResultRXTask = spy(new DistResultRXTask(
             2,
             "dummy",
+            batchConsumer,
             pageBucketReceiver,
             mock(RamAccountingContext.class),
             1));
+        distResultRXTask.start();
 
         builder.addTask(collectChildTask);
         builder.addTask(distResultRXTask);

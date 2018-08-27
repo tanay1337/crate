@@ -84,7 +84,7 @@ public class DistributingConsumerTest extends CrateUnitTest {
         try {
             Streamer<?>[] streamers = {DataTypes.INTEGER.streamer()};
             TestingRowConsumer collectingConsumer = new TestingRowConsumer();
-            DistResultRXTask distResultRXTask = createPageDownstreamContext(streamers, collectingConsumer);
+            DistResultRXTask distResultRXTask = createStartedRXTask(streamers, collectingConsumer);
             TransportDistributedResultAction distributedResultAction = createFakeTransport(streamers, distResultRXTask);
             DistributingConsumer distributingConsumer = createDistributingConsumer(streamers, distributedResultAction);
 
@@ -115,7 +115,7 @@ public class DistributingConsumerTest extends CrateUnitTest {
     public void testDistributingConsumerForwardsFailure() throws Exception {
         Streamer<?>[] streamers = { DataTypes.INTEGER.streamer() };
         TestingRowConsumer collectingConsumer = new TestingRowConsumer();
-        DistResultRXTask distResultRXTask = createPageDownstreamContext(streamers, collectingConsumer);
+        DistResultRXTask distResultRXTask = createStartedRXTask(streamers, collectingConsumer);
         TransportDistributedResultAction distributedResultAction = createFakeTransport(streamers, distResultRXTask);
         DistributingConsumer distributingConsumer = createDistributingConsumer(streamers, distributedResultAction);
 
@@ -130,7 +130,7 @@ public class DistributingConsumerTest extends CrateUnitTest {
     public void testFailureOnAllLoadedIsForwarded() throws Exception {
         Streamer<?>[] streamers = { DataTypes.INTEGER.streamer() };
         TestingRowConsumer collectingConsumer = new TestingRowConsumer();
-        DistResultRXTask distResultRXTask = createPageDownstreamContext(streamers, collectingConsumer);
+        DistResultRXTask distResultRXTask = createStartedRXTask(streamers, collectingConsumer);
         TransportDistributedResultAction distributedResultAction = createFakeTransport(streamers, distResultRXTask);
         DistributingConsumer distributingConsumer = createDistributingConsumer(streamers, distributedResultAction);
 
@@ -156,24 +156,26 @@ public class DistributingConsumerTest extends CrateUnitTest {
         );
     }
 
-    private DistResultRXTask createPageDownstreamContext(Streamer<?>[] streamers, TestingRowConsumer collectingConsumer) {
+    private DistResultRXTask createStartedRXTask(Streamer<?>[] streamers, TestingRowConsumer collectingConsumer) {
         PageBucketReceiver pageBucketReceiver = new CumulativePageBucketReceiver(
             Loggers.getLogger(DistResultRXTask.class),
             "n1",
             1,
             executorService,
             streamers,
-            collectingConsumer,
             PassThroughPagingIterator.oneShot(),
             1);
 
-        return new DistResultRXTask(
+        DistResultRXTask distResultRXTask = new DistResultRXTask(
             1,
             "dummy",
+            collectingConsumer,
             pageBucketReceiver,
             new RamAccountingContext("dummy", new NoopCircuitBreaker("dummy")),
             1
         );
+        distResultRXTask.start();
+        return distResultRXTask;
     }
 
     private TransportDistributedResultAction createFakeTransport(Streamer<?>[] streamers, DistResultRXTask distResultRXTask) {
@@ -193,7 +195,7 @@ public class DistributingConsumerTest extends CrateUnitTest {
                     resultRequest.isLast(),
                     needMore -> listener.onResponse(new DistributedResultResponse(needMore)));
             } else {
-                bucketReceiver.kill(throwable);
+                bucketReceiver.receivedRows().kill(throwable);
             }
             return null;
         }).when(distributedResultAction).pushResult(anyString(), any(), any());

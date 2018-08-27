@@ -24,8 +24,9 @@ package io.crate.execution.jobs;
 
 import io.crate.Streamer;
 import io.crate.concurrent.CompletionListenable;
+import io.crate.data.BatchIterator;
 import io.crate.data.Bucket;
-import io.crate.data.Killable;
+import io.crate.data.Row;
 import io.crate.execution.dsl.phases.MergePhase;
 import io.crate.execution.engine.distribution.DistributingConsumerFactory;
 
@@ -59,7 +60,7 @@ import java.util.concurrent.CompletableFuture;
  * </pre>
  *
  */
-public interface PageBucketReceiver extends CompletionListenable, Killable {
+public interface PageBucketReceiver extends CompletionListenable {
 
     /**
      * Receives a bucket from an upstream which holds result data. This method should be
@@ -80,11 +81,5 @@ public interface PageBucketReceiver extends CompletionListenable, Killable {
      */
     CompletableFuture<?> completionFuture();
 
-    /**
-     * After the buckets have been received (or the the entire "page") this will actually start the consumption of the
-     * rows. It will usually be called internally by the implementations and is exposed in case there are times where
-     * the consumption can start immediately (eg. we expect 0 buckets)
-     */
-    void consumeRows();
-
+    BatchIterator<Row> receivedRows();
 }

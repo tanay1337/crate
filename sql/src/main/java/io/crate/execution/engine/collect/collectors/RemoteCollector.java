@@ -176,13 +176,13 @@ public class RemoteCollector {
             RECEIVER_PHASE_ID,
             executor,
             DataTypes.getStreamers(collectPhase.outputTypes()),
-            consumer,
             pagingIterator,
             1);
 
         builder.addTask(new DistResultRXTask(
             RECEIVER_PHASE_ID,
             "RemoteCollectPhase",
+            consumer,
             pageBucketReceiver,
             ramAccountingContext,
             1

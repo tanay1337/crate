@@ -66,9 +66,9 @@ public class DistResultRXTaskTest extends CrateUnitTest {
     private static final RamAccountingContext RAM_ACCOUNTING_CONTEXT =
         new RamAccountingContext("dummy", new NoopCircuitBreaker(CircuitBreaker.FIELDDATA));
 
-    private DistResultRXTask getPageDownstreamContext(TestingRowConsumer batchConsumer,
-                                                      PagingIterator<Integer, Row> pagingIterator,
-                                                      int numBuckets) {
+    private DistResultRXTask getStartedRXTask(TestingRowConsumer batchConsumer,
+                                              PagingIterator<Integer, Row> pagingIterator,
+                                              int numBuckets) {
 
         PageBucketReceiver pageBucketReceiver = new CumulativePageBucketReceiver(
             Loggers.getLogger(DistResultRXTask.class),
@@ -76,24 +76,26 @@ public class DistResultRXTaskTest extends CrateUnitTest {
             1,
             MoreExecutors.directExecutor(),
             new Streamer[1],
-            batchConsumer,
             pagingIterator,
             numBuckets);
 
-        return new DistResultRXTask(
+        DistResultRXTask task = new DistResultRXTask(
             1,
             "dummy",
+            batchConsumer,
             pageBucketReceiver,
             RAM_ACCOUNTING_CONTEXT,
             numBuckets
         );
+        task.start();
+        return task;
     }
 
     @Test
     public void testCantSetSameBucketTwiceWithoutReceivingFullPage() throws Throwable {
         TestingRowConsumer batchConsumer = new TestingRowConsumer();
 
-        DistResultRXTask ctx = getPageDownstreamContext(batchConsumer, PassThroughPagingIterator.oneShot(), 3);
+        DistResultRXTask ctx = getStartedRXTask(batchConsumer, PassThroughPagingIterator.oneShot(), 3);
 
         PageResultListener pageResultListener = mock(PageResultListener.class);
         Bucket bucket = new CollectionBucket(Collections.singletonList(new Object[] { "foo" }));
@@ -110,7 +112,7 @@ public class DistResultRXTaskTest extends CrateUnitTest {
     @Test
     public void testKillCallsDownstream() throws Throwable {
         TestingRowConsumer batchConsumer = new TestingRowConsumer();
-        DistResultRXTask ctx = getPageDownstreamContext(batchConsumer, PassThroughPagingIterator.oneShot(), 3);
+        DistResultRXTask ctx = getStartedRXTask(batchConsumer, PassThroughPagingIterator.oneShot(), 3);
 
         final AtomicReference<Throwable> throwable = new AtomicReference<>();
         ctx.completionFuture().whenComplete((r, t) -> {
@@ -131,7 +133,7 @@ public class DistResultRXTaskTest extends CrateUnitTest {
     @Test
     public void testPagingWithSortedPagingIterator() throws Throwable {
         TestingRowConsumer batchConsumer = new TestingRowConsumer();
-        DistResultRXTask ctx = getPageDownstreamContext(
+        DistResultRXTask ctx = getStartedRXTask(
             batchConsumer,
             new SortedPagingIterator<>(Comparator.comparingInt(r -> (int)r.get(0)), false),
             2
@@ -170,13 +172,13 @@ public class DistResultRXTaskTest extends CrateUnitTest {
     @Test
     public void testListenersCalledWhenOtherUpstreamIsFailing() throws Exception {
         TestingRowConsumer consumer = new TestingRowConsumer();
-        DistResultRXTask ctx = getPageDownstreamContext(consumer, PassThroughPagingIterator.oneShot(), 2);
+        DistResultRXTask ctx = getStartedRXTask(consumer, PassThroughPagingIterator.oneShot(), 2);
 
         PageResultListener listener = mock(PageResultListener.class);
         PageBucketReceiver bucketReceiver = ctx.getBucketReceiver((byte) 0);
         assertThat(bucketReceiver, notNullValue());
         bucketReceiver.setBucket(0, Bucket.EMPTY, false, listener);
-        bucketReceiver.kill(new Exception("dummy"));
+        bucketReceiver.receivedRows().kill(new Exception("dummy"));
 
         verify(listener, times(1)).needMore(false);
     }
@@ -184,11 +186,11 @@ public class DistResultRXTaskTest extends CrateUnitTest {
     @Test
     public void testListenerCalledAfterOthersHasFailed() throws Exception {
         TestingRowConsumer consumer = new TestingRowConsumer();
-        DistResultRXTask ctx = getPageDownstreamContext(consumer, PassThroughPagingIterator.oneShot(), 2);
+        DistResultRXTask ctx = getStartedRXTask(consumer, PassThroughPagingIterator.oneShot(), 2);
         PageBucketReceiver bucketReceiver = ctx.getBucketReceiver((byte) 0);
         assertThat(bucketReceiver, notNullValue());
 
-        bucketReceiver.kill(new Exception("dummy"));
+        bucketReceiver.receivedRows().kill(new Exception("dummy"));
         PageResultListener listener = mock(PageResultListener.class);
         bucketReceiver.setBucket(1, Bucket.EMPTY, true, listener);
 
@@ -198,7 +200,7 @@ public class DistResultRXTaskTest extends CrateUnitTest {
     @Test
     public void testSetBucketOnAKilledCtxReleasesListener() throws Exception {
         TestingRowConsumer consumer = new TestingRowConsumer();
-        DistResultRXTask ctx = getPageDownstreamContext(consumer, PassThroughPagingIterator.oneShot(), 2);
+        DistResultRXTask ctx = getStartedRXTask(consumer, PassThroughPagingIterator.oneShot(), 2);
         PageBucketReceiver bucketReceiver = ctx.getBucketReceiver((byte) 0);
         assertThat(bucketReceiver, notNullValue());
         ctx.kill(new InterruptedException("killed"));
@@ -213,7 +215,7 @@ public class DistResultRXTaskTest extends CrateUnitTest {
     @Test
     public void testNonSequentialBucketIds() throws Exception {
         TestingRowConsumer batchConsumer = new TestingRowConsumer();
-        DistResultRXTask ctx = getPageDownstreamContext(
+        DistResultRXTask ctx = getStartedRXTask(
             batchConsumer,
             PassThroughPagingIterator.oneShot(),
             3
@@ -249,7 +251,7 @@ public class DistResultRXTaskTest extends CrateUnitTest {
     public void testBatchIteratorIsCompletedExceptionallyIfMergeBucketFails() throws Exception {
         TestingRowConsumer batchConsumer = new TestingRowConsumer();
 
-        DistResultRXTask ctx = getPageDownstreamContext(batchConsumer, new FailOnMergePagingIterator<>(2), 2);
+        DistResultRXTask ctx = getStartedRXTask(batchConsumer, new FailOnMergePagingIterator<>(2), 2);
         PageBucketReceiver bucketReceiver = ctx.getBucketReceiver((byte) 0);
         assertThat(bucketReceiver, notNullValue());
 

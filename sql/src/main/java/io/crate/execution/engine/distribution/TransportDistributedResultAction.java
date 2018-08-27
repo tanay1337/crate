@@ -154,7 +154,7 @@ public class TransportDistributedResultAction extends AbstractComponent implemen
             );
             return pageResultListener.future;
         } else {
-            pageBucketReceiver.kill(throwable);
+            pageBucketReceiver.receivedRows().kill(throwable);
             return CompletableFuture.completedFuture(new DistributedResultResponse(false));
         }
     }

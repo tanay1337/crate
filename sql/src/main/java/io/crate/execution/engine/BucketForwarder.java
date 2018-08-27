@@ -84,7 +84,7 @@ final class BucketForwarder {
     protected void failed(@Nonnull Throwable t) {
         initializationTracker.jobInitializationFailed(t);
         for (PageBucketReceiver pageBucketReceiver : pageBucketReceivers) {
-            pageBucketReceiver.kill(t);
+            pageBucketReceiver.receivedRows().kill(t);
         }
     }
 

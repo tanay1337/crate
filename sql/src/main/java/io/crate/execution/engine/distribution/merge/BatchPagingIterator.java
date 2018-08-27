@@ -135,6 +135,7 @@ public class BatchPagingIterator<Key> implements BatchIterator<Row> {
             }
         } else {
             killed = ex;
+            close();
             if (ex instanceof RuntimeException) {
                 throw ((RuntimeException) ex);
             } else {
@@ -149,8 +150,13 @@ public class BatchPagingIterator<Key> implements BatchIterator<Row> {
     }
 
     private void raiseIfClosedOrKilled() {
+        // Do closed check first because it's cheaper, but prefer killed error if it's present
         if (closed) {
-            throw new IllegalStateException("Iterator is closed");
+            if (killed == null) {
+                throw new IllegalStateException("Iterator is closed");
+            } else {
+                Exceptions.rethrowUnchecked(killed);
+            }
         }
         Throwable err;
         synchronized (this) {

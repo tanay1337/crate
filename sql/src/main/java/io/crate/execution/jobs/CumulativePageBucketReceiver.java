@@ -25,8 +25,10 @@ package io.crate.execution.jobs;
 import io.crate.Streamer;
 import io.crate.data.BatchIterator;
 import io.crate.data.Bucket;
+import io.crate.data.InMemoryBatchIterator;
+import io.crate.data.ListenableBatchIterator;
 import io.crate.data.Row;
-import io.crate.data.RowConsumer;
+import io.crate.data.SentinelRow;
 import io.crate.execution.engine.distribution.merge.BatchPagingIterator;
 import io.crate.execution.engine.distribution.merge.KeyIterable;
 import io.crate.execution.engine.distribution.merge.PagingIterator;
@@ -34,7 +36,6 @@ import io.netty.util.collection.IntObjectHashMap;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
-import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +47,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.crate.concurrent.CompletableFutures.failedFuture;
 
@@ -71,22 +73,18 @@ public class CumulativePageBucketReceiver implements PageBucketReceiver {
     private final Map<Integer, PageResultListener> listenersByBucketIdx;
     @GuardedBy("lock")
     private final Map<Integer, Bucket> bucketsByIdx;
-    private final RowConsumer consumer;
-    private final PagingIterator<Integer, Row> pagingIterator;
-    private final BatchIterator<Row> batchPagingIterator;
+    private final BatchIterator<Row> batchIterator;
     private final Logger logger;
-    private final CompletableFuture<?> processingFuture = new CompletableFuture<>();
+    private final CompletableFuture<Void> processingFuture = new CompletableFuture<>();
+    private final AtomicBoolean receivingFirstPage = new AtomicBoolean(true);
 
-    private Throwable lastThrowable = null;
     private volatile CompletableFuture<List<KeyIterable<Integer, Row>>> currentPage = new CompletableFuture<>();
-    private volatile boolean receivingFirstPage = true;
 
     public CumulativePageBucketReceiver(Logger logger,
                                         String nodeName,
                                         int phaseId,
                                         Executor executor,
                                         Streamer<?>[] streamers,
-                                        RowConsumer rowConsumer,
                                         PagingIterator<Integer, Row> pagingIterator,
                                         int numBuckets) {
         this.logger = logger;
@@ -94,10 +92,7 @@ public class CumulativePageBucketReceiver implements PageBucketReceiver {
         this.phaseId = phaseId;
         this.executor = executor;
         this.streamers = streamers;
-        this.consumer = rowConsumer;
-        this.pagingIterator = pagingIterator;
         this.numBuckets = numBuckets;
-
         this.buckets = Collections.newSetFromMap(new IntObjectHashMap<>(numBuckets));
         this.exhausted = Collections.newSetFromMap(new IntObjectHashMap<>(numBuckets));
         this.bucketsByIdx = new IntObjectHashMap<>(numBuckets);
@@ -110,32 +105,37 @@ public class CumulativePageBucketReceiver implements PageBucketReceiver {
                 listenersByBucketIdx.clear();
             }
         });
-        batchPagingIterator = new BatchPagingIterator<>(
-            pagingIterator,
-            this::fetchMore,
-            this::allUpstreamsExhausted,
-            throwable -> {
-                if (throwable == null) {
-                    processingFuture.complete(null);
-                } else {
-                    processingFuture.completeExceptionally(throwable);
+        if (numBuckets == 0) {
+            batchIterator = new ListenableBatchIterator<>(
+                InMemoryBatchIterator.empty(SentinelRow.SENTINEL), processingFuture);
+        } else {
+            batchIterator = new BatchPagingIterator<>(
+                pagingIterator,
+                this::fetchMore,
+                this::allUpstreamsExhausted,
+                throwable -> {
+                    if (throwable == null) {
+                        processingFuture.complete(null);
+                    } else {
+                        processingFuture.completeExceptionally(throwable);
+                    }
                 }
-            }
-        );
+            );
+        }
         traceEnabled = logger.isTraceEnabled();
     }
 
     @Override
     public void setBucket(int bucketIdx, Bucket rows, boolean isLast, PageResultListener pageResultListener) {
-        final boolean isLastOrHasError;
+        final boolean isLastOrIsDone;
         synchronized (buckets) {
             buckets.add(bucketIdx);
-            isLastOrHasError = isLast || lastThrowable != null;
-            if (!isLastOrHasError) {
+            isLastOrIsDone = isLast || processingFuture.isDone();
+            if (!isLastOrIsDone) {
                 listenersByBucketIdx.put(bucketIdx, pageResultListener);
             }
         }
-        if (isLastOrHasError) {
+        if (isLastOrIsDone) {
             pageResultListener.needMore(false);
         }
         final boolean allBucketsOfPageReceived;
@@ -153,64 +153,23 @@ public class CumulativePageBucketReceiver implements PageBucketReceiver {
             allBucketsOfPageReceived = bucketsByIdx.size() == numBuckets;
         }
         if (allBucketsOfPageReceived) {
-            mergeAndTriggerConsumer();
+            processPage();
         }
     }
 
-    private void triggerConsumer(List<KeyIterable<Integer, Row>> buckets) {
-        boolean invokeConsumer = false;
-        Throwable throwable;
-        synchronized (lock) {
-            if (receivingFirstPage) {
-                receivingFirstPage = false;
-                invokeConsumer = true;
-            }
-            throwable = lastThrowable;
-        }
-        final Throwable error = throwable;
-        if (invokeConsumer) {
-            if (error == null) {
-                try {
-                    pagingIterator.merge(buckets);
-                    executor.execute(this::consumeRows);
-                } catch (EsRejectedExecutionException | RejectedExecutionException e) {
-                    consumer.accept(null, e);
-                    throwable = e;
-                }
-            } else {
-                consumer.accept(null, error);
-            }
-        } else {
-            if (error == null) {
-                try {
-                    executor.execute(() -> currentPage.complete(buckets));
-                } catch (EsRejectedExecutionException | RejectedExecutionException e) {
-                    currentPage.completeExceptionally(e);
-                    throwable = e;
-                }
-            } else {
-                currentPage.completeExceptionally(error);
-            }
-        }
-        if (throwable != null) {
-            processingFuture.completeExceptionally(throwable);
-        }
-    }
-
-    private void mergeAndTriggerConsumer() {
+    private void processPage() {
         List<KeyIterable<Integer, Row>> buckets;
         try {
             buckets = getBuckets();
         } catch (Throwable t) {
-            kill(t);
-            // the iterator already returned it's loadNextBatch future, we must complete it exceptionally
             currentPage.completeExceptionally(t);
             return;
         }
-        if (allUpstreamsExhausted()) {
-            pagingIterator.finish();
+        try {
+            executor.execute(() -> currentPage.complete(buckets));
+        } catch (EsRejectedExecutionException | RejectedExecutionException e) {
+            currentPage.completeExceptionally(e);
         }
-        triggerConsumer(buckets);
     }
 
     private List<KeyIterable<Integer, Row>> getBuckets() {
@@ -232,10 +191,13 @@ public class CumulativePageBucketReceiver implements PageBucketReceiver {
     }
 
     private boolean allUpstreamsExhausted() {
-        return exhausted.size() == numBuckets;
+        return exhausted.size() == numBuckets && !receivingFirstPage.get();
     }
 
     private CompletableFuture<? extends Iterable<? extends KeyIterable<Integer, Row>>> fetchMore(Integer exhaustedBucket) {
+        if (receivingFirstPage.compareAndSet(true, false)) {
+            return currentPage;
+        }
         if (allUpstreamsExhausted()) {
             return failedFuture(new IllegalStateException("Source is exhausted"));
         }
@@ -289,25 +251,7 @@ public class CumulativePageBucketReceiver implements PageBucketReceiver {
     }
 
     @Override
-    public void consumeRows() {
-        consumer.accept(batchPagingIterator, lastThrowable);
-    }
-
-    @Override
-    public void kill(@Nonnull Throwable t) {
-        boolean shouldTriggerConsumer = false;
-        synchronized (lock) {
-            lastThrowable = t;
-            batchPagingIterator.kill(t); // this causes a already active consumer to fail
-            batchPagingIterator.close();
-            if (receivingFirstPage) {
-                // no active consumer - can "activate" it with a failure
-                receivingFirstPage = false;
-                shouldTriggerConsumer = true;
-            }
-        }
-        if (shouldTriggerConsumer) {
-            consumer.accept(null, t);
-        }
+    public BatchIterator<Row> receivedRows() {
+        return batchIterator;
     }
 }

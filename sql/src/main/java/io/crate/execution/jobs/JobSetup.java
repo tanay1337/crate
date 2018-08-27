@@ -648,7 +648,6 @@ public class JobSetup extends AbstractComponent {
                     phase.phaseId(),
                     searchTp,
                     DataTypes.getStreamers(phase.inputTypes()),
-                    consumer,
                     PagingIterator.create(
                         phase.numUpstreams(),
                         false,
@@ -660,7 +659,6 @@ public class JobSetup extends AbstractComponent {
             } else {
                 pageBucketReceiver = new IncrementalPageBucketReceiver<>(
                     collector,
-                    consumer,
                     DataTypes.getStreamers(phase.inputTypes()),
                     phase.numUpstreams());
             }
@@ -668,6 +666,7 @@ public class JobSetup extends AbstractComponent {
             context.registerSubContext(new DistResultRXTask(
                 phase.phaseId(),
                 phase.name(),
+                consumer,
                 pageBucketReceiver,
                 ramAccountingContext,
                 phase.numUpstreams()
@@ -876,7 +875,6 @@ public class JobSetup extends AbstractComponent {
                 mergePhase.phaseId(),
                 searchTp,
                 StreamerVisitor.streamersFromOutputs(mergePhase),
-                rowConsumer,
                 PagingIterator.create(
                     mergePhase.numUpstreams(),
                     true,
@@ -889,6 +887,7 @@ public class JobSetup extends AbstractComponent {
             return new DistResultRXTask(
                 mergePhase.phaseId(),
                 mergePhase.name(),
+                rowConsumer,
                 pageBucketReceiver,
                 ramAccountingContext,
                 mergePhase.numUpstreams()

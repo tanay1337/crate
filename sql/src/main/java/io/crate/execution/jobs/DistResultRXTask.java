@@ -22,10 +22,12 @@
 package io.crate.execution.jobs;
 
 import io.crate.breaker.RamAccountingContext;
+import io.crate.data.RowConsumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A {@link DownstreamRXTask} which receives paged buckets from upstreams
@@ -35,17 +37,21 @@ public class DistResultRXTask implements Task, DownstreamRXTask {
 
     private final int id;
     private final String name;
+    private final RowConsumer rowConsumer;
     private final int numBuckets;
     private final PageBucketReceiver pageBucketReceiver;
     private final CompletableFuture<CompletionState> completionFuture;
+    private final AtomicReference<State> currentState = new AtomicReference<>(State.CREATED);
 
     public DistResultRXTask(int id,
                             String name,
+                            RowConsumer rowConsumer,
                             PageBucketReceiver pageBucketReceiver,
                             RamAccountingContext ramAccountingContext,
                             int numBuckets) {
         this.id = id;
         this.name = name;
+        this.rowConsumer = rowConsumer;
         this.numBuckets = numBuckets;
         this.pageBucketReceiver = pageBucketReceiver;
         this.completionFuture = pageBucketReceiver.completionFuture().handle((result, ex) -> {
@@ -68,16 +74,17 @@ public class DistResultRXTask implements Task, DownstreamRXTask {
 
     @Override
     public void kill(@Nonnull Throwable t) {
-        pageBucketReceiver.kill(t);
+        if (currentState.compareAndSet(State.CREATED, State.STOPPED)) {
+            rowConsumer.accept(null, t);
+        } else {
+            pageBucketReceiver.receivedRows().kill(t);
+        }
     }
 
     @Override
     public void start() {
-        // E.g. If the upstreamPhase is a collectPhase for a partitioned table without any partitions
-        // there won't be any executionNodes for that collectPhase
-        // -> no upstreams -> just finish
-        if (numBuckets == 0) {
-            pageBucketReceiver.consumeRows();
+        if (currentState.compareAndSet(State.CREATED, State.RUNNING)) {
+            rowConsumer.accept(pageBucketReceiver.receivedRows(), null);
         }
     }
 
