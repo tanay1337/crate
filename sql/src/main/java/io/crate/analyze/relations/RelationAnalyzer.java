@@ -36,6 +36,7 @@ import io.crate.analyze.WhereClause;
 import io.crate.analyze.expressions.ExpressionAnalysisContext;
 import io.crate.analyze.expressions.ExpressionAnalyzer;
 import io.crate.analyze.expressions.SubqueryAnalyzer;
+import io.crate.analyze.expressions.Subscripts;
 import io.crate.analyze.relations.select.SelectAnalysis;
 import io.crate.analyze.relations.select.SelectAnalyzer;
 import io.crate.analyze.validator.GroupBySymbolValidator;
@@ -77,6 +78,7 @@ import io.crate.sql.tree.Intersect;
 import io.crate.sql.tree.Join;
 import io.crate.sql.tree.JoinCriteria;
 import io.crate.sql.tree.JoinOn;
+import io.crate.sql.tree.LongLiteral;
 import io.crate.sql.tree.Node;
 import io.crate.sql.tree.QualifiedName;
 import io.crate.sql.tree.QualifiedNameReference;
@@ -84,6 +86,7 @@ import io.crate.sql.tree.Query;
 import io.crate.sql.tree.QuerySpecification;
 import io.crate.sql.tree.Relation;
 import io.crate.sql.tree.SortItem;
+import io.crate.sql.tree.SubscriptExpression;
 import io.crate.sql.tree.Table;
 import io.crate.sql.tree.TableFunction;
 import io.crate.sql.tree.TableSubquery;
@@ -177,12 +180,9 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
                     childRelation,
                     analyzeOrderBy(
                         selectAnalysis,
+                        fieldProvider,
                         node.getOrderBy(),
-                        expressionAnalyzer.withFieldProvider(new OutputsAwareFieldProvider(
-                            selectAnalysis,
-                            (name, args) -> expressionAnalyzer.allocateFunction(name, args, expressionAnalysisContext),
-                            fieldProvider
-                        )),
+                        expressionAnalyzer,
                         expressionAnalysisContext,
                         false,
                         false),
@@ -336,6 +336,7 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
         QuerySpec querySpec = new QuerySpec()
             .orderBy(analyzeOrderBy(
                 selectAnalysis,
+                fieldProvider,
                 node.getOrderBy(),
                 expressionAnalyzer,
                 expressionAnalysisContext,
@@ -484,12 +485,13 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
     }
 
     @Nullable
-    private static OrderBy analyzeOrderBy(SelectAnalysis selectAnalysis,
-                                          List<SortItem> orderBy,
-                                          ExpressionAnalyzer expressionAnalyzer,
-                                          ExpressionAnalysisContext expressionAnalysisContext,
-                                          boolean hasAggregatesOrGrouping,
-                                          boolean isDistinct) {
+    private static <T extends Symbol> OrderBy analyzeOrderBy(SelectAnalysis selectAnalysis,
+                                                             FieldProvider<T> fieldProvider,
+                                                             List<SortItem> orderBy,
+                                                             ExpressionAnalyzer expressionAnalyzer,
+                                                             ExpressionAnalysisContext expressionAnalysisContext,
+                                                             boolean hasAggregatesOrGrouping,
+                                                             boolean isDistinct) {
         int size = orderBy.size();
         if (size == 0) {
             return null;
@@ -501,7 +503,9 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
         for (int i = 0; i < size; i++) {
             SortItem sortItem = orderBy.get(i);
             Expression sortKey = sortItem.getSortKey();
-            Symbol symbol = expressionAnalyzer.convert(sortKey, expressionAnalysisContext);
+            Symbol symbol = symbolFromSelectOutputReferenceOrExpression(
+                sortKey, selectAnalysis, fieldProvider, Operation.READ, expressionAnalyzer, expressionAnalysisContext);
+
             SemanticSortValidator.validate(symbol);
             if (hasAggregatesOrGrouping) {
                 OrderByWithAggregationValidator.validate(symbol, selectAnalysis.outputSymbols(), isDistinct);
@@ -555,6 +559,70 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
     }
 
     /**
+     * <h2>resolve expression by also taking alias and ordinal-reference into account</h2>
+     * <p>
+     * <p>
+     * in order by clauses it is possible to reference anything in the select list by using a number or alias
+     * </p>
+     * <p>
+     * These are allowed:
+     * <pre>
+     *     select name as n  ... order by n
+     *     select name  ... order by 1
+     *     select name ... order by other_column
+     * </pre>
+     */
+    private static <T extends Symbol> Symbol symbolFromSelectOutputReferenceOrExpression(Expression expression,
+                                                                                         SelectAnalysis selectAnalysis,
+                                                                                         FieldProvider<T> fieldProvider,
+                                                                                         Operation operation,
+                                                                                         ExpressionAnalyzer expressionAnalyzer,
+                                                                                         ExpressionAnalysisContext expressionAnalysisContext) {
+        if (expression instanceof SubscriptExpression) {
+            SubscriptExpression subscriptExpression = (SubscriptExpression) expression;
+            return Subscripts.convert(
+                subscriptExpression,
+                fieldProvider,
+                operation,
+                expr -> {
+                    if (expr == subscriptExpression.name()) {
+                        Symbol fromSelectList = tryResolveFromSelectList(expr, selectAnalysis);
+                        return fromSelectList == null
+                            ? expressionAnalyzer.convert(expr, expressionAnalysisContext)
+                            : fromSelectList;
+                    }
+                    return expressionAnalyzer.convert(expr, expressionAnalysisContext);
+                },
+                (name, args) -> expressionAnalyzer.allocateFunction(name, args, expressionAnalysisContext)
+            );
+        } else {
+            Symbol symbol = tryResolveFromSelectList(expression, selectAnalysis);
+            if (symbol == null) {
+                return expressionAnalyzer.convert(expression, expressionAnalysisContext);
+            } else {
+                return symbol;
+            }
+        }
+    }
+
+    @Nullable
+    private static Symbol tryResolveFromSelectList(Expression expression, SelectAnalysis selectAnalysis) {
+        Symbol symbol;
+        if (expression instanceof QualifiedNameReference) {
+            List<String> parts = ((QualifiedNameReference) expression).getName().getParts();
+            if (parts.size() == 1) {
+                symbol = getOneOrAmbiguous(selectAnalysis.outputMultiMap(), Iterables.getOnlyElement(parts));
+                if (symbol != null) {
+                    return symbol;
+                }
+            }
+        } else if (expression instanceof LongLiteral) {
+            return selectAnalysis.outputSymbols().get((int) ((LongLiteral) expression).getValue() - 1);
+        }
+        return null;
+    }
+
+    /**
      * Resolve expression by also taking ordinal reference into account (eg. for `GROUP BY` clauses).
      * In case we cannot resolve the expression because an alias is used, will try to resolve the alias.
      * <p>
@@ -565,9 +633,8 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
                                                                      String clause,
                                                                      ExpressionAnalyzer expressionAnalyzer,
                                                                      ExpressionAnalysisContext expressionAnalysisContext) {
-        Symbol symbol;
         try {
-            symbol = expressionAnalyzer.convert(expression, expressionAnalysisContext);
+            Symbol symbol = expressionAnalyzer.convert(expression, expressionAnalysisContext);
             if (symbol.symbolType().isValueSymbol()) {
                 Literal longLiteral;
                 try {
@@ -582,25 +649,20 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
                         Locale.ENGLISH,
                         "Cannot use %s in %s clause", SymbolPrinter.INSTANCE.printUnqualified(symbol), clause));
                 }
-                symbol = ordinalOutputReference(selectAnalysis.outputSymbols(), longLiteral, clause);
+                return ordinalOutputReference(selectAnalysis.outputSymbols(), longLiteral, clause);
             }
+            return symbol;
         } catch (ColumnUnknownException e) {
-            if (expression instanceof QualifiedNameReference) {
-                List<String> parts = ((QualifiedNameReference) expression).getName().getParts();
-                if (parts.size() == 1) {
-                    symbol = getOneOrAmbiguous(selectAnalysis.outputMultiMap(), Iterables.getOnlyElement(parts));
-                    if (symbol != null) {
-                        return symbol;
-                    }
-                }
+            Symbol symbol = tryResolveFromSelectList(expression, selectAnalysis);
+            if (symbol == null) {
+                throw e;
+            } else {
+                return symbol;
             }
-            throw e;
         }
-
-        return symbol;
     }
 
-    static Symbol ordinalOutputReference(List<Symbol> outputSymbols, Literal longLiteral, String clauseName) {
+    private static Symbol ordinalOutputReference(List<Symbol> outputSymbols, Literal longLiteral, String clauseName) {
         assert longLiteral.valueType().equals(DataTypes.LONG) : "longLiteral must have valueType long";
         int idx = ((Long) longLiteral.value()).intValue() - 1;
         if (idx < 0) {
@@ -616,7 +678,7 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
     }
 
     @Nullable
-    static Symbol getOneOrAmbiguous(Multimap<String, Symbol> selectList, String key) throws AmbiguousColumnAliasException {
+    private static Symbol getOneOrAmbiguous(Multimap<String, Symbol> selectList, String key) throws AmbiguousColumnAliasException {
         Collection<Symbol> symbols = selectList.get(key);
         if (symbols.size() > 1) {
             throw new AmbiguousColumnAliasException(key, symbols);

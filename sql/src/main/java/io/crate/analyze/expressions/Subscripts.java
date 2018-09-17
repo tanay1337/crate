@@ -78,7 +78,8 @@ public final class Subscripts {
                 return create(name, parts, allocateFunction);
             }
         } else {
-            Symbol symbol = fieldProvider.resolveField(qualifiedName, parts, operation);
+            Symbol symbol;
+            symbol = fieldProvider.resolveField(qualifiedName, parts, operation);
             Expression idxExpression = subscriptContext.index();
             if (idxExpression == null) {
                 return symbol;
