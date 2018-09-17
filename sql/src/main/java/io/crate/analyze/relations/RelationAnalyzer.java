@@ -153,14 +153,15 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
             statementContext.endRelation();
 
             List<Field> childRelationFields = childRelation.fields();
+            FullQualifiedNameFieldProvider fieldProvider = new FullQualifiedNameFieldProvider(
+                relationAnalysisContext.sources(),
+                relationAnalysisContext.parentSources(),
+                statementContext.transactionContext().sessionContext().defaultSchema());
             ExpressionAnalyzer expressionAnalyzer = new ExpressionAnalyzer(
                 functions,
                 statementContext.transactionContext(),
                 statementContext.convertParamFunction(),
-                new FullQualifiedNameFieldProvider(
-                    relationAnalysisContext.sources(),
-                    relationAnalysisContext.parentSources(),
-                    statementContext.transactionContext().sessionContext().defaultSchema()),
+                fieldProvider,
                 new SubqueryAnalyzer(this, statementContext));
             ExpressionAnalysisContext expressionAnalysisContext = relationAnalysisContext.expressionAnalysisContext();
             SelectAnalysis selectAnalysis = new SelectAnalysis(
@@ -177,7 +178,8 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
                     analyzeOrderBy(
                         selectAnalysis,
                         node.getOrderBy(),
-                        expressionAnalyzer,
+                        expressionAnalyzer.withFieldProvider(
+                            new OutputsAwareFieldProvider(selectAnalysis.outputMultiMap(), fieldProvider)),
                         expressionAnalysisContext,
                         false,
                         false),
@@ -569,17 +571,7 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
                                                                       String clause,
                                                                       ExpressionAnalyzer expressionAnalyzer,
                                                                       ExpressionAnalysisContext expressionAnalysisContext) {
-        Symbol symbol;
-        if (expression instanceof QualifiedNameReference) {
-            List<String> parts = ((QualifiedNameReference) expression).getName().getParts();
-            if (parts.size() == 1) {
-                symbol = getOneOrAmbiguous(selectAnalysis.outputMultiMap(), Iterables.getOnlyElement(parts));
-                if (symbol != null) {
-                    return symbol;
-                }
-            }
-        }
-        symbol = expressionAnalyzer.convert(expression, expressionAnalysisContext);
+        Symbol symbol = expressionAnalyzer.convert(expression, expressionAnalysisContext);
         if (symbol.symbolType().isValueSymbol()) {
             Literal longLiteral;
             try {
@@ -661,7 +653,7 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
     }
 
     @Nullable
-    private static Symbol getOneOrAmbiguous(Multimap<String, Symbol> selectList, String key) throws AmbiguousColumnAliasException {
+    static Symbol getOneOrAmbiguous(Multimap<String, Symbol> selectList, String key) throws AmbiguousColumnAliasException {
         Collection<Symbol> symbols = selectList.get(key);
         if (symbols.size() > 1) {
             throw new AmbiguousColumnAliasException(key, symbols);

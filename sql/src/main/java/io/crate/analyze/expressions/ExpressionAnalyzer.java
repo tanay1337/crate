@@ -330,6 +330,17 @@ public class ExpressionAnalyzer {
         }
     }
 
+    public <T extends Symbol> ExpressionAnalyzer withFieldProvider(FieldProvider<T> fieldProvider) {
+        return new ExpressionAnalyzer(
+            functions,
+            transactionContext,
+            convertParamFunction,
+            fieldProvider,
+            subQueryAnalyzer,
+            operation
+        );
+    }
+
     private class InnerExpressionAnalyzer extends AstVisitor<Symbol, ExpressionAnalysisContext> {
 
         @Override
@@ -551,6 +562,7 @@ public class ExpressionAnalyzer {
             // TODO: support nested subscripts as soon as DataTypes.OBJECT elements can be typed
             Symbol subscriptSymbol;
             Expression subscriptExpression = subscriptContext.expression();
+
             if (subscriptContext.qualifiedName() != null && subscriptExpression == null) {
                 subscriptSymbol = fieldProvider.resolveField(subscriptContext.qualifiedName(), subscriptContext.parts(), operation);
             } else if (subscriptExpression != null) {
@@ -872,7 +884,7 @@ public class ExpressionAnalyzer {
         return allocateBuiltinOrUdfFunction(schema, functionName, arguments, context, functions, transactionContext);
     }
 
-    private Symbol allocateFunction(String functionName,
+    public Symbol allocateFunction(String functionName,
                                     List<Symbol> arguments,
                                     ExpressionAnalysisContext context) {
         return allocateFunction(functionName, arguments, context, functions, transactionContext);

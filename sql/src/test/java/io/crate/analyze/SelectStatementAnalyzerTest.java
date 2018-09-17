@@ -1958,4 +1958,9 @@ public class SelectStatementAnalyzerTest extends CrateDummyClusterServiceUnitTes
         expectedException.expectMessage("Relation 'doc.a' unknown");
         analyze("select doc.a.x from t1 as a");
     }
+
+    @Test
+    public void testSubscriptOnAliasIsSupportedAsOrderBy() {
+        QueriedRelation relation = analyze("select load as l from sys.nodes order by l['1']");
+    }
 }
