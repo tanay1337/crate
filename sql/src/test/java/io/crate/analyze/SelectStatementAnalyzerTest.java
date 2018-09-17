@@ -1968,4 +1968,9 @@ public class SelectStatementAnalyzerTest extends CrateDummyClusterServiceUnitTes
     public void testFunctionsCanBeUsedInIndexOfSubscript() {
         QueriedRelation relation = analyze("select load['1' || ''] from sys.nodes");
     }
+
+    @Test
+    public void testFoo() {
+        analyze("select 2 as two, 1 as eins group by eins order by eins");
+    }
 }

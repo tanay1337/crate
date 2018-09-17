@@ -178,8 +178,11 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
                     analyzeOrderBy(
                         selectAnalysis,
                         node.getOrderBy(),
-                        expressionAnalyzer.withFieldProvider(
-                            new OutputsAwareFieldProvider(selectAnalysis.outputMultiMap(), fieldProvider)),
+                        expressionAnalyzer.withFieldProvider(new OutputsAwareFieldProvider(
+                            selectAnalysis,
+                            (name, args) -> expressionAnalyzer.allocateFunction(name, args, expressionAnalysisContext),
+                            fieldProvider
+                        )),
                         expressionAnalysisContext,
                         false,
                         false),
@@ -334,8 +337,7 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
             .orderBy(analyzeOrderBy(
                 selectAnalysis,
                 node.getOrderBy(),
-                expressionAnalyzer.withFieldProvider(
-                    new OutputsAwareFieldProvider(selectAnalysis.outputMultiMap(), fieldProvider)),
+                expressionAnalyzer,
                 expressionAnalysisContext,
                 expressionAnalysisContext.hasAggregates() || groupBy != null,
                 isDistinct))
@@ -499,9 +501,7 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
         for (int i = 0; i < size; i++) {
             SortItem sortItem = orderBy.get(i);
             Expression sortKey = sortItem.getSortKey();
-            Symbol symbol = symbolFromSelectOutputReferenceOrExpression(
-                sortKey, selectAnalysis, "ORDER BY", expressionAnalyzer, expressionAnalysisContext);
-
+            Symbol symbol = expressionAnalyzer.convert(sortKey, expressionAnalysisContext);
             SemanticSortValidator.validate(symbol);
             if (hasAggregatesOrGrouping) {
                 OrderByWithAggregationValidator.validate(symbol, selectAnalysis.outputSymbols(), isDistinct);
@@ -555,45 +555,6 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
     }
 
     /**
-     * <h2>resolve expression by also taking alias and ordinal-reference into account</h2>
-     * <p>
-     * <p>
-     * in order by clauses it is possible to reference anything in the select list by using a number or alias
-     * </p>
-     * <p>
-     * These are allowed:
-     * <pre>
-     *     select name as n  ... order by n
-     *     select name  ... order by 1
-     *     select name ... order by other_column
-     * </pre>
-     */
-    private static Symbol symbolFromSelectOutputReferenceOrExpression(Expression expression,
-                                                                      SelectAnalysis selectAnalysis,
-                                                                      String clause,
-                                                                      ExpressionAnalyzer expressionAnalyzer,
-                                                                      ExpressionAnalysisContext expressionAnalysisContext) {
-        Symbol symbol = expressionAnalyzer.convert(expression, expressionAnalysisContext);
-        if (symbol.symbolType().isValueSymbol()) {
-            Literal longLiteral;
-            try {
-                longLiteral = io.crate.expression.symbol.Literal.convert(symbol, DataTypes.LONG);
-            } catch (ClassCastException | IllegalArgumentException e) {
-                throw new IllegalArgumentException(String.format(
-                    Locale.ENGLISH,
-                    "Cannot use %s in %s clause", SymbolPrinter.INSTANCE.printUnqualified(symbol), clause));
-            }
-            if (longLiteral.value() == null) {
-                throw new IllegalArgumentException(String.format(
-                    Locale.ENGLISH,
-                    "Cannot use %s in %s clause", SymbolPrinter.INSTANCE.printUnqualified(symbol), clause));
-            }
-            symbol = ordinalOutputReference(selectAnalysis.outputSymbols(), longLiteral, clause);
-        }
-        return symbol;
-    }
-
-    /**
      * Resolve expression by also taking ordinal reference into account (eg. for `GROUP BY` clauses).
      * In case we cannot resolve the expression because an alias is used, will try to resolve the alias.
      * <p>
@@ -639,7 +600,7 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
         return symbol;
     }
 
-    private static Symbol ordinalOutputReference(List<Symbol> outputSymbols, Literal longLiteral, String clauseName) {
+    static Symbol ordinalOutputReference(List<Symbol> outputSymbols, Literal longLiteral, String clauseName) {
         assert longLiteral.valueType().equals(DataTypes.LONG) : "longLiteral must have valueType long";
         int idx = ((Long) longLiteral.value()).intValue() - 1;
         if (idx < 0) {

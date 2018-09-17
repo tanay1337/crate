@@ -30,8 +30,6 @@ import io.crate.expression.scalar.SubscriptFunction;
 import io.crate.expression.scalar.SubscriptObjectFunction;
 import io.crate.expression.symbol.Literal;
 import io.crate.expression.symbol.Symbol;
-import io.crate.metadata.FunctionIdent;
-import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.table.Operation;
 import io.crate.sql.tree.Expression;
 import io.crate.sql.tree.QualifiedName;
@@ -71,9 +69,14 @@ public final class Subscripts {
         List<String> parts = subscriptContext.parts();
 
         if (qualifiedName == null) {
-            Symbol name = expression2Symbol.apply(subscript.name());
-            Symbol index = expression2Symbol.apply(subscript.index());
-            return createSubscript(allocateFunction, name, index);
+            if (parts == null || parts.isEmpty()) {
+                Symbol name = expression2Symbol.apply(subscript.name());
+                Symbol index = expression2Symbol.apply(subscript.index());
+                return createSubscript(allocateFunction, name, index);
+            } else {
+                Symbol name = expression2Symbol.apply(subscriptContext.expression());
+                return create(name, parts, allocateFunction);
+            }
         } else {
             Symbol symbol = fieldProvider.resolveField(qualifiedName, parts, operation);
             Expression idxExpression = subscriptContext.index();
@@ -94,16 +97,17 @@ public final class Subscripts {
         return allocateFunction.apply(function, ImmutableList.of(name, index));
     }
 
-    public static Symbol create(Symbol symbol, @Nullable List<String> path) {
+    public static Symbol create(Symbol symbol,
+                                @Nullable List<String> path,
+                                BiFunction<String, List<Symbol>, Symbol> allocateFunction) {
         if (path == null || path.isEmpty()) {
             return symbol;
         }
         for (int i = 0; i < path.size(); i++) {
-            String p = path.get(i);
-            FunctionIdent functionIdent = new FunctionIdent(
-                SubscriptObjectFunction.NAME, ImmutableList.of(DataTypes.OBJECT, DataTypes.STRING));
-            symbol = new io.crate.expression.symbol.Function(
-                new FunctionInfo(functionIdent, DataTypes.UNDEFINED), ImmutableList.of(symbol, Literal.of(p)));
+            symbol = allocateFunction.apply(
+                SubscriptObjectFunction.NAME,
+                ImmutableList.of(symbol, Literal.of(path.get(i)))
+            );
         }
         return symbol;
     }

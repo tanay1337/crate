@@ -854,9 +854,9 @@ public class ExpressionAnalyzer {
         return allocateBuiltinOrUdfFunction(schema, functionName, arguments, context, functions, transactionContext);
     }
 
-    private Symbol allocateFunction(String functionName,
-                                    List<Symbol> arguments,
-                                    ExpressionAnalysisContext context) {
+    public Symbol allocateFunction(String functionName,
+                                   List<Symbol> arguments,
+                                   ExpressionAnalysisContext context) {
         return allocateFunction(functionName, arguments, context, functions, transactionContext);
     }
 
