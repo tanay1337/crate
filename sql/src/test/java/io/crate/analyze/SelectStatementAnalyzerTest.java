@@ -1963,4 +1963,9 @@ public class SelectStatementAnalyzerTest extends CrateDummyClusterServiceUnitTes
     public void testSubscriptOnAliasIsSupportedAsOrderBy() {
         QueriedRelation relation = analyze("select load as l from sys.nodes order by l['1']");
     }
+
+    @Test
+    public void testFunctionsCanBeUsedInIndexOfSubscript() {
+        QueriedRelation relation = analyze("select load['1' || ''] from sys.nodes");
+    }
 }

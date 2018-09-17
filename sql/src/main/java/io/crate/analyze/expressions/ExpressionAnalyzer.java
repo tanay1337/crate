@@ -30,8 +30,6 @@ import com.google.common.collect.Multimap;
 import io.crate.action.sql.Option;
 import io.crate.analyze.DataTypeAnalyzer;
 import io.crate.analyze.NegativeLiteralVisitor;
-import io.crate.analyze.SubscriptContext;
-import io.crate.analyze.SubscriptValidator;
 import io.crate.analyze.relations.FieldProvider;
 import io.crate.analyze.relations.QueriedRelation;
 import io.crate.exceptions.ColumnUnknownException;
@@ -50,7 +48,6 @@ import io.crate.expression.operator.any.AnyOperator;
 import io.crate.expression.predicate.NotPredicate;
 import io.crate.expression.scalar.ExtractFunctions;
 import io.crate.expression.scalar.SubscriptFunction;
-import io.crate.expression.scalar.SubscriptObjectFunction;
 import io.crate.expression.scalar.arithmetic.ArrayFunction;
 import io.crate.expression.scalar.arithmetic.MapFunction;
 import io.crate.expression.scalar.cast.CastFunctionResolver;
@@ -553,40 +550,13 @@ public class ExpressionAnalyzer {
 
         @Override
         protected Symbol visitSubscriptExpression(SubscriptExpression node, ExpressionAnalysisContext context) {
-            SubscriptContext subscriptContext = new SubscriptContext();
-            SubscriptValidator.validate(node, subscriptContext);
-            return resolveSubscriptSymbol(subscriptContext, context);
-        }
-
-        Symbol resolveSubscriptSymbol(SubscriptContext subscriptContext, ExpressionAnalysisContext context) {
-            // TODO: support nested subscripts as soon as DataTypes.OBJECT elements can be typed
-            Symbol subscriptSymbol;
-            Expression subscriptExpression = subscriptContext.expression();
-
-            if (subscriptContext.qualifiedName() != null && subscriptExpression == null) {
-                subscriptSymbol = fieldProvider.resolveField(subscriptContext.qualifiedName(), subscriptContext.parts(), operation);
-            } else if (subscriptExpression != null) {
-                subscriptSymbol = subscriptExpression.accept(this, context);
-            } else {
-                throw new UnsupportedOperationException("Only references, function calls or array literals " +
-                                                        "are valid subscript symbols");
-            }
-            assert subscriptSymbol != null : "subscriptSymbol must not be null";
-            Expression index = subscriptContext.index();
-            List<String> parts = subscriptContext.parts();
-            if (index != null) {
-                Symbol indexSymbol = index.accept(this, context);
-                // rewrite array access to subscript scalar
-                List<Symbol> args = ImmutableList.of(subscriptSymbol, indexSymbol);
-                return allocateFunction(SubscriptFunction.NAME, args, context);
-            } else if (parts != null && subscriptExpression != null) {
-                Symbol function = allocateFunction(SubscriptObjectFunction.NAME, ImmutableList.of(subscriptSymbol, Literal.of(parts.get(0))), context);
-                for (int i = 1; i < parts.size(); i++) {
-                    function = allocateFunction(SubscriptObjectFunction.NAME, ImmutableList.of(function, Literal.of(parts.get(i))), context);
-                }
-                return function;
-            }
-            return subscriptSymbol;
+            return Subscripts.convert(
+                node,
+                fieldProvider,
+                operation,
+                expression -> process(expression, context),
+                (name, args) -> allocateFunction(name, args, context)
+            );
         }
 
         @Override
@@ -884,7 +854,7 @@ public class ExpressionAnalyzer {
         return allocateBuiltinOrUdfFunction(schema, functionName, arguments, context, functions, transactionContext);
     }
 
-    public Symbol allocateFunction(String functionName,
+    private Symbol allocateFunction(String functionName,
                                     List<Symbol> arguments,
                                     ExpressionAnalysisContext context) {
         return allocateFunction(functionName, arguments, context, functions, transactionContext);

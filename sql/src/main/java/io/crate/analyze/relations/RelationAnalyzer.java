@@ -289,14 +289,15 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
 
         RelationAnalysisContext context = statementContext.currentRelationContext();
         TransactionContext transactionContext = statementContext.transactionContext();
+        FullQualifiedNameFieldProvider fieldProvider = new FullQualifiedNameFieldProvider(
+            context.sources(),
+            context.parentSources(),
+            transactionContext.sessionContext().defaultSchema());
         ExpressionAnalyzer expressionAnalyzer = new ExpressionAnalyzer(
             functions,
             transactionContext,
             statementContext.convertParamFunction(),
-            new FullQualifiedNameFieldProvider(
-                context.sources(),
-                context.parentSources(),
-                transactionContext.sessionContext().defaultSchema()),
+            fieldProvider,
             new SubqueryAnalyzer(this, statementContext));
         ExpressionAnalysisContext expressionAnalysisContext = context.expressionAnalysisContext();
 
@@ -333,7 +334,8 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
             .orderBy(analyzeOrderBy(
                 selectAnalysis,
                 node.getOrderBy(),
-                expressionAnalyzer,
+                expressionAnalyzer.withFieldProvider(
+                    new OutputsAwareFieldProvider(selectAnalysis.outputMultiMap(), fieldProvider)),
                 expressionAnalysisContext,
                 expressionAnalysisContext.hasAggregates() || groupBy != null,
                 isDistinct))
