@@ -40,6 +40,9 @@ Breaking Changes
 Changes
 =======
 
+- Added ``pg_class`` and ``pg_namespace`` tables to the ``pg_catalog`` schema
+  for improved compatibility with postgresql.
+
 - Expand the ``search_path`` setting to accept a list of schemas that will be
   searched when a relation (table, view or user defined function) is referenced
   without specifying a schema. The system ``pg_catalog`` schema is implicitly

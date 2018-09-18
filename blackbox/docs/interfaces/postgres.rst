@@ -124,8 +124,20 @@ Operations can be cancelled using the ``KILL`` statement, hence the
 ``CancelRequest`` message  is unsupported. Consequently, the server won't send
 a ``BackendKeyData`` message during connection initialization.
 
+``pg_catalog``
+--------------
+
+For improved compatibility, the ``pg_catalog`` schema is implemented containing
+following tables:
+
+ - `pg_type`_
+ - ``pg_class``
+ - ``pg_namespace``
+
+.. _pg_type:
+
 ``pg_type``
------------
+...........
 
 Some clients require the ``pg_catalog.pg_type`` in order to be able to stream
 arrays or other non-primitive types.
@@ -159,6 +171,7 @@ CrateDB::
     | 1185 |           0 | ,        |    1184 | _timestamptz | b       |
     +------+-------------+----------+---------+--------------+---------+
     SELECT 20 rows in set (... sec)
+
 
 Show Transaction Isolation
 --------------------------
