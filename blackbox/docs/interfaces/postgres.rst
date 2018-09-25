@@ -133,6 +133,7 @@ following tables:
  - `pg_type`_
  - ``pg_class``
  - ``pg_namespace``
+ - ``pg_attrdef``
 
 .. _pg_type:
 
