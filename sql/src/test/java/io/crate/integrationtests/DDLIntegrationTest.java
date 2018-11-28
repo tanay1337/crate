@@ -660,7 +660,7 @@ public class DDLIntegrationTest extends SQLTransportIntegrationTest {
     }
 
     @Test
-    public void testAlterShardsOfPartitionedTable() throws Exception {
+    public void testAlterShardsOfPartitionedTableAffectsNewPartitions() throws Exception {
         execute("create table quotes (id integer, quote string, date timestamp) " +
                 "partitioned by(date) clustered into 3 shards with (number_of_replicas='0-all')");
         ensureYellow();
@@ -687,9 +687,60 @@ public class DDLIntegrationTest extends SQLTransportIntegrationTest {
         assertThat(settingsResponse.getSetting(partition, IndexMetaData.SETTING_NUMBER_OF_SHARDS), is("5"));
     }
 
+    @Test
+    public void testAlterShardsTableCombinedWithOtherSettingsIsInvalid() throws Exception {
+        execute("create table quotes (id integer, quote string, date timestamp) " +
+                "clustered into 3 shards with (number_of_replicas='0-all')");
+
+        expectedException.expect(SQLActionException.class);
+        expectedException.expectMessage("Setting [number_of_shards] cannot be combined with other settings");
+        execute("alter table quotes set (number_of_shards=1, number_of_replicas='1-all')");
+    }
 
     @Test
-    public void testAlterShardsOfSpecificPartitionOfPartitionedTable() throws Exception {
+    public void testAlterShardsTableSameNumberOfShardsIsInvalid() throws Exception {
+        execute("create table quotes (id integer, quote string, date timestamp) " +
+                "clustered into 3 shards with (number_of_replicas='0-all')");
+
+        expectedException.expect(SQLActionException.class);
+        expectedException.expectMessage("Table/partition is already allocated <3> shards");
+        execute("alter table quotes set (number_of_shards=3)");
+    }
+
+    @Test
+    public void testAlterShardsTableIncreaseNumberOfShardsIsInvalid() throws Exception {
+        execute("create table quotes (id integer, quote string, date timestamp) " +
+                "clustered into 3 shards with (number_of_replicas='0-all')");
+
+        expectedException.expect(SQLActionException.class);
+        expectedException.expectMessage("Increasing the number of shards is not supported");
+        execute("alter table quotes set (number_of_shards=5)");
+    }
+
+    @Test
+    public void testAlterShardsTableReadWriteTableIsInvalid() throws Exception {
+        execute("create table quotes (id integer, quote string, date timestamp) " +
+                "clustered into 3 shards with (number_of_replicas='0-all', \"blocks.write\"=false)");
+
+        expectedException.expect(SQLActionException.class);
+        expectedException.expectMessage("Table/Partition needs to be at a read-only state");
+        execute("alter table quotes set (number_of_shards=1)");
+    }
+
+    @Test
+    public void testAlterShardsTable() throws Exception {
+        execute("create table quotes (id integer, quote string, date timestamp) " +
+                "clustered into 3 shards with (number_of_replicas='0-all', \"blocks.write\"=true)");
+
+        execute("alter table quotes set (number_of_shards=1)");
+        //GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("quotes").execute().get();
+        //assertThat(settingsResponse.getSetting("quotes", IndexMetaData.SETTING_NUMBER_OF_SHARDS), is("1"));
+        execute("select number_of_shards from information_schema.tables where table_name = 'quotes'");
+        assertThat(response.rows()[0][0], is(1));
+    }
+
+    @Test
+    public void testAlterShardsPartitionCombinedWithOtherSettingsIsInvalid() throws Exception {
         execute("create table quotes (id integer, quote string, date timestamp) " +
                 "partitioned by(date) clustered into 3 shards with (number_of_replicas='0-all')");
 
@@ -700,18 +751,80 @@ public class DDLIntegrationTest extends SQLTransportIntegrationTest {
         );
 
         expectedException.expect(SQLActionException.class);
-        expectedException.expectMessage("Can't update non dynamic settings [[index.number_of_shards]] for open indices");
+        expectedException.expectMessage("Setting [number_of_shards] cannot be combined with other settings");
+        execute("alter table quotes partition (date=1395874800000) " +
+                "set (number_of_shards=1, number_of_replicas='1-all')");
+    }
+
+    @Test
+    public void testAlterShardsPartitionSameNumberOfShardsIsInvalid() throws Exception {
+        execute("create table quotes (id integer, quote string, date timestamp) " +
+                "partitioned by(date) clustered into 3 shards with (number_of_replicas='0-all')");
+
+        execute("insert into quotes (id, quote, date) values (?, ?, ?), (?, ?, ?)",
+            new Object[]{
+                1, "Don't panic", 1395874800000L,
+                2, "Now panic", 1395961200000L}
+        );
+
+        expectedException.expect(SQLActionException.class);
+        expectedException.expectMessage("Table/partition is already allocated <3> shards");
+        execute("alter table quotes partition (date=1395874800000) set (number_of_shards=3)");
+    }
+
+    @Test
+    public void testAlterShardsPartitionIncreaseNumberOfShardsIsInvalid() throws Exception {
+        execute("create table quotes (id integer, quote string, date timestamp) " +
+                "partitioned by(date) clustered into 3 shards with (number_of_replicas='0-all')");
+
+        execute("insert into quotes (id, quote, date) values (?, ?, ?), (?, ?, ?)",
+            new Object[]{
+                1, "Don't panic", 1395874800000L,
+                2, "Now panic", 1395961200000L}
+        );
+
+        expectedException.expect(SQLActionException.class);
+        expectedException.expectMessage("Increasing the number of shards is not supported");
+        execute("alter table quotes partition (date=1395874800000) set (number_of_shards=5)");
+    }
+
+
+    @Test
+    public void testAlterShardsPartitionReadWritePartitionIsInvalid() throws Exception {
+        execute("create table quotes (id integer, quote string, date timestamp) " +
+                "partitioned by(date) clustered into 3 shards with (number_of_replicas='0-all')");
+
+        execute("insert into quotes (id, quote, date) values (?, ?, ?), (?, ?, ?)",
+            new Object[]{
+                1, "Don't panic", 1395874800000L,
+                2, "Now panic", 1395961200000L}
+        );
+
+        expectedException.expect(SQLActionException.class);
+        expectedException.expectMessage("Table/Partition needs to be at a read-only state");
         execute("alter table quotes partition (date=1395874800000) set (number_of_shards=1)");
     }
 
     @Test
-    public void testAlterShardsOfNonPartitionedTable() throws Exception {
+    public void testAlterShardsPartition() throws Exception {
         execute("create table quotes (id integer, quote string, date timestamp) " +
-                "clustered into 3 shards with (number_of_replicas='0-all')");
+                "partitioned by(date) clustered into 3 shards with (number_of_replicas='0-all')");
 
-        expectedException.expect(SQLActionException.class);
-        expectedException.expectMessage("Can't update non dynamic settings [[index.number_of_shards]] for open indices");
-        execute("alter table quotes set (number_of_shards=1)");
+        execute("insert into quotes (id, quote, date) values (?, ?, ?), (?, ?, ?)",
+            new Object[]{
+                1, "Don't panic", 1395874800000L,
+                2, "Now panic", 1395961200000L}
+        );
+
+        execute("alter table quotes partition (date=1395874800000) set (\"blocks.write\"=true)");
+
+        execute("alter table quotes partition (date=1395874800000) set (number_of_shards=1)");
+        execute("select number_of_shards from information_schema.table_partitions " +
+                "where table_name = 'quotes' " +
+                "and values = '{\"date\": 1395874800000}'");
+        assertThat(response.rows()[0][0], is(1));
+        execute("select id from quotes");
+        assertThat(response.rowCount(), is(2L));
     }
 
     @Test
