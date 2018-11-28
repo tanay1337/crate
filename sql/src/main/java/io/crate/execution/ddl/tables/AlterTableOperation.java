@@ -38,11 +38,8 @@ import io.crate.analyze.TableParameterInfo;
 import io.crate.concurrent.CompletableFutures;
 import io.crate.concurrent.MultiBiConsumer;
 import io.crate.data.Row;
-import io.crate.execution.ddl.index.DropIndexRequest;
-import io.crate.execution.ddl.index.DropIndexResponse;
 import io.crate.execution.ddl.index.ExchangeIndexNameRequest;
 import io.crate.execution.ddl.index.ExchangeIndexNameResponse;
-import io.crate.execution.ddl.index.TransportDropIndexAction;
 import io.crate.execution.ddl.index.TransportExchangeIndexNameAction;
 import io.crate.execution.support.ChainableAction;
 import io.crate.execution.support.ChainableActions;
@@ -58,6 +55,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -116,8 +116,7 @@ import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_
 @Singleton
 public class AlterTableOperation {
 
-    private static final String SHRINK_PART_PREFIX = ".shrinked";
-    private static final String SHRINK_TABLE_PREFIX = SHRINK_PART_PREFIX + ".";
+    private static final String SHRINK_PREFIX = ".shrinked";
 
     private final ClusterService clusterService;
     private final TransportPutIndexTemplateAction transportPutIndexTemplateAction;
@@ -128,7 +127,7 @@ public class AlterTableOperation {
     private final TransportRenameTableAction transportRenameTableAction;
     private final TransportOpenCloseTableOrPartitionAction transportOpenCloseTableOrPartitionAction;
     private final TransportResizeAction transportResizeAction;
-    private final TransportDropIndexAction transportDropIndexAction;
+    private final TransportDeleteIndexAction transportDeleteIndexAction;
     private final TransportExchangeIndexNameAction transportExchangeIndexNameAction;
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
@@ -146,7 +145,7 @@ public class AlterTableOperation {
                                TransportRenameTableAction transportRenameTableAction,
                                TransportOpenCloseTableOrPartitionAction transportOpenCloseTableOrPartitionAction,
                                TransportResizeAction transportResizeAction,
-                               TransportDropIndexAction transportDropIndexAction,
+                               TransportDeleteIndexAction transportDeleteIndexAction,
                                TransportExchangeIndexNameAction transportExchangeIndexNameAction,
                                SQLOperations sqlOperations,
                                IndexScopedSettings indexScopedSettings,
@@ -161,7 +160,7 @@ public class AlterTableOperation {
         this.transportCloseIndexAction = transportCloseIndexAction;
         this.transportRenameTableAction = transportRenameTableAction;
         this.transportResizeAction = transportResizeAction;
-        this.transportDropIndexAction = transportDropIndexAction;
+        this.transportDeleteIndexAction = transportDeleteIndexAction;
         this.transportExchangeIndexNameAction = transportExchangeIndexNameAction;
         this.transportOpenCloseTableOrPartitionAction = transportOpenCloseTableOrPartitionAction;
         this.indexScopedSettings = indexScopedSettings;
@@ -285,19 +284,18 @@ public class AlterTableOperation {
     private CompletableFuture<Long> executeAlterTableChangeNumberOfShards(AlterTableAnalyzedStatement analysis) {
         final DocTableInfo table = analysis.table();
         final boolean isPartitioned = table.isPartitioned();
-        String sourceIndexName, targetIndexName, sourceIndexAlias;
+        String sourceIndexName, sourceIndexAlias;
         if (isPartitioned) {
             Optional<PartitionName> partitionName = analysis.partitionName();
             assert partitionName.isPresent() : "Resizing operations for partitioned tables " +
                                                "are only supported at partition level";
             sourceIndexName = partitionName.get().asIndexName();
-            targetIndexName = SHRINK_PART_PREFIX + sourceIndexName;
-            sourceIndexAlias = table.ident().indexName();
+             sourceIndexAlias = table.ident().indexName();
         } else {
             sourceIndexName = table.ident().indexName();
-            targetIndexName = SHRINK_TABLE_PREFIX + sourceIndexName;
             sourceIndexAlias = null;
         }
+        String targetIndexName = SHRINK_PREFIX + sourceIndexName;
 
         int targetNumberOfShards = analysis.tableParameter().settings().getAsInt(SETTING_NUMBER_OF_SHARDS, 0);
         validateForResize(sourceIndexName, targetNumberOfShards);
@@ -313,15 +311,13 @@ public class AlterTableOperation {
             () -> revertAllocation(sourceIndexName)
         ));
 
-        // todo ensure green state
-
         // shrink index
         actions.add(new ChainableAction<>(
             () -> shrinkIndex(sourceIndexName, sourceIndexAlias, targetIndexName, targetNumberOfShards),
-            () -> dropIndex(targetIndexName)
+            () -> deleteIndex(targetIndexName)
         ));
 
-        // index name exchange
+        // index rename
         actions.add(new ChainableAction<>(
             () -> closeTable(sourceIndexName, targetIndexName),
             () -> openTable(sourceIndexName, targetIndexName)
@@ -337,9 +333,9 @@ public class AlterTableOperation {
             () -> closeTable(sourceIndexName)
         ));
 
-        // drop original index (that is now renamed to target index)
+        // delete original index (that is now renamed to target index)
         actions.add(new ChainableAction<>(
-            () -> dropIndex(targetIndexName),
+            () -> deleteIndex(targetIndexName),
             () -> CompletableFuture.completedFuture(-1L)
         ));
 
@@ -377,20 +373,40 @@ public class AlterTableOperation {
     private CompletableFuture<Long> restrictAllocationToNode(String nodeName, String... indices) {
         Settings settings = Settings.builder()
             .put(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeName)
-            // added temporarily for convenience - todo: remove
-            //.put(SETTING_BLOCKS_WRITE, "true")
-            //
             .build();
 
-        return updateSettings(settings, indices);
+        UpdateSettingsRequest request = new UpdateSettingsRequest(settings, indices);
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+
+        FutureActionListener<UpdateSettingsResponse, Long> listener
+            = new FutureActionListener<>(r -> (r.isAcknowledged()) ? 0L : -1L);
+
+        transportUpdateSettingsAction.execute(request, ActionListener.wrap(response -> {
+            if (response.isAcknowledged()) {
+                activeShardsObserver.waitForActiveShards(request.indices(),
+                    ActiveShardCount.DEFAULT,
+                    request.ackTimeout(), shardsAcked -> {
+                        if (!shardsAcked && logger.isInfoEnabled()) {
+                            logger.info("[{}] indexes reallocation is in progress, " +
+                                        "but the operation timed out while waiting for " +
+                                        "enough shards to be back on green state. Timeout={}. " +
+                                        "Consider increasing the timeout or adding nodes to the cluster.",
+                                request.indices(), request.timeout());
+                        }
+                        listener.onResponse(response);
+                    }, listener::onFailure);
+            } else {
+                logger.warn("[{}] Indexes reallocated, but publishing new cluster state timed out. Timeout={}",
+                    request.indices(), request.timeout());
+                listener.onResponse(response);
+            }
+        }, listener::onFailure));
+        return listener;
     }
 
     private CompletableFuture<Long> revertAllocation(String... indices) {
         Settings settings = Settings.builder()
             .putNull(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name")
-            // added temporarily for convenience - todo: remove
-            //.put(SETTING_BLOCKS_WRITE, "false")
-            //
             .build();
         return updateSettings(settings, indices);
     }
@@ -405,46 +421,41 @@ public class AlterTableOperation {
 
         ResizeRequest request = new ResizeRequest(targetIndexName, sourceIndexName);
         request.getTargetIndexRequest().settings(targetIndexSettings);
-        if (sourceIndexAlias != null) {
-            request.getTargetIndexRequest().alias(new Alias(sourceIndexAlias));
-        }
+        request.getTargetIndexRequest().alias(new Alias(sourceIndexAlias));
         request.setResizeType(ResizeType.SHRINK);
         request.setCopySettings(Boolean.TRUE);
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT);
 
-        //        FutureActionListener<ResizeResponse, Long> listener = new FutureActionListener<>(r -> 0L);
-        //        transportResizeAction.execute(request, listener);
-        //        return listener;
         FutureActionListener<ResizeResponse, Long> listener
             = new FutureActionListener<>(r -> (r.isAcknowledged()) ? 1L : -1L);
 
         transportResizeAction.execute(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
-                activeShardsObserver.waitForActiveShards(request.indices(),
+                activeShardsObserver.waitForActiveShards(request.getTargetIndexRequest().indices(),
                                                         ActiveShardCount.DEFAULT,
                                                         request.ackTimeout(), shardsAcked -> {
                         if (!shardsAcked && logger.isInfoEnabled()) {
                             logger.info("[{}] indexes shrinked, but the operation timed out while waiting for " +
                                         "enough shards to be started. Timeout={}. " +
-                                        "Consider adding nodes to the cluster and then retry.",
-                                request.indices(), request.timeout());
+                                        "Consider increasing the timeout or adding nodes to the cluster.",
+                                request.getTargetIndexRequest().indices(), request.timeout());
                         }
                         listener.onResponse(response);
                     }, listener::onFailure);
             } else {
                 logger.warn("[{}] Indexes shrinked, but publishing new cluster state timed out. Timeout={}",
-                    request.indices(), request.timeout());
+                    request.getTargetIndexRequest().indices(), request.timeout());
                 listener.onResponse(response);
             }
         }, listener::onFailure));
         return listener;
     }
 
-    private CompletableFuture<Long> dropIndex(String indexName) {
-        DropIndexRequest request = new DropIndexRequest(indexName);
+    private CompletableFuture<Long> deleteIndex(String indexName) {
+        DeleteIndexRequest request = new DeleteIndexRequest(indexName);
 
-        FutureActionListener<DropIndexResponse, Long> listener = new FutureActionListener<>(r -> 0L);
-        transportDropIndexAction.execute(request, listener);
+        FutureActionListener<DeleteIndexResponse, Long> listener = new FutureActionListener<>(r -> 0L);
+        transportDeleteIndexAction.execute(request, listener);
         return listener;
     }
 
