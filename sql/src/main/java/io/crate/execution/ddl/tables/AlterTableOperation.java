@@ -297,7 +297,7 @@ public class AlterTableOperation {
         String targetIndexName = SHRINK_PREFIX + sourceIndexName;
 
         int targetNumberOfShards = analysis.tableParameter().settings().getAsInt(SETTING_NUMBER_OF_SHARDS, 0);
-        validateForResize(sourceIndexName, targetNumberOfShards);
+        validateForResizeRequest(sourceIndexName, targetNumberOfShards);
 
         List<ChainableAction<Long>> actions = new ArrayList<>(7);
 
@@ -363,18 +363,29 @@ public class AlterTableOperation {
         return ChainableActions.run(actions);
     }
 
-    private void validateForResize(String indexName, int targetNumberOfShards) {
-        final int currentNumberOfShards = clusterService.state().metaData().index(indexName).getNumberOfShards();
+    private void validateForResizeRequest(String indexName, int targetNumberOfShards) {
+        final IndexMetaData indexMetaData = clusterService.state().metaData().index(indexName);
+        validateNumberOfShardsForResize(indexMetaData, targetNumberOfShards);
+        validateReadOnlyIndexForResize(indexMetaData);
+    }
+
+    @VisibleForTesting
+    static void validateNumberOfShardsForResize(IndexMetaData indexMetaData, int targetNumberOfShards) {
+        final int currentNumberOfShards = indexMetaData.getNumberOfShards();
         if (currentNumberOfShards == targetNumberOfShards) {
             throw new IllegalArgumentException(
                 String.format("Table/partition is already allocated <%d> shards", currentNumberOfShards));
         } else if (targetNumberOfShards > currentNumberOfShards) {
             throw new IllegalArgumentException("Increasing the number of shards is not supported");
         }
+    }
 
-        final Boolean blocks_write = clusterService.state().metaData().index(indexName)
-            .getSettings().getAsBoolean(INDEX_BLOCKS_WRITE_SETTING.getKey(), false);
-        if (!blocks_write) {
+    @VisibleForTesting
+    static void validateReadOnlyIndexForResize(IndexMetaData indexMetaData) {
+        final Boolean readOnly = indexMetaData
+            .getSettings()
+            .getAsBoolean(INDEX_BLOCKS_WRITE_SETTING.getKey(), Boolean.FALSE);
+        if (!readOnly) {
             throw new IllegalStateException("Table/Partition needs to be at a read-only state." +
                                                " Use 'ALTER table ... set (\"blocks.write\"=true)' and retry");
         }
