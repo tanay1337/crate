@@ -55,6 +55,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static io.crate.metadata.cluster.DDLClusterStateHelpers.renameIndices;
+
 public class RenameTableClusterStateExecutor extends DDLClusterStateTaskExecutor<RenameTableRequest> {
 
     private static final IndicesOptions STRICT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, false);
@@ -172,23 +174,6 @@ public class RenameTableClusterStateExecutor extends DDLClusterStateTaskExecutor
             return parser.map();
         } catch (IOException e) {
             throw new ElasticsearchException("failed to parse mapping", e);
-        }
-    }
-
-    private static void renameIndices(MetaData metaData,
-                                      MetaData.Builder mdBuilder,
-                                      ClusterBlocks.Builder blocksBuilder,
-                                      Index[] sourceIndices,
-                                      String[] targetIndices) {
-        for (int i = 0; i < sourceIndices.length; i++) {
-            Index index = sourceIndices[i];
-            IndexMetaData indexMetaData = metaData.getIndexSafe(index);
-            IndexMetaData targetIndexMetadata = IndexMetaData.builder(indexMetaData)
-                .index(targetIndices[i]).build();
-            mdBuilder.remove(index.getName());
-            mdBuilder.put(targetIndexMetadata, true);
-            blocksBuilder.removeIndexBlocks(index.getName());
-            blocksBuilder.addBlocks(targetIndexMetadata);
         }
     }
 

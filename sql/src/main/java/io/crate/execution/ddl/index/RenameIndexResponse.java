@@ -28,12 +28,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class ExchangeIndexNameResponse extends AcknowledgedResponse {
+public class RenameIndexResponse extends AcknowledgedResponse {
 
-    public ExchangeIndexNameResponse() {
+    public RenameIndexResponse() {
     }
 
-    public ExchangeIndexNameResponse(boolean acknowledged) {
+    public RenameIndexResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

@@ -22,72 +22,62 @@
 
 package io.crate.metadata.cluster;
 
-import io.crate.execution.ddl.index.ExchangeIndexNameRequest;
+import io.crate.execution.ddl.index.RenameIndexRequest;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
-public class ExchangeIndexNameClusterStateExecutor extends DDLClusterStateTaskExecutor<ExchangeIndexNameRequest> {
+import static io.crate.metadata.cluster.DDLClusterStateHelpers.renameIndices;
+
+public class RenameIndexClusterStateExecutor extends DDLClusterStateTaskExecutor<RenameIndexRequest> {
 
     private static final IndicesOptions STRICT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, false);
-    private static final String BACKUP_PREFIX = ".backup";
 
 
     private final Logger logger;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public ExchangeIndexNameClusterStateExecutor(Settings settings,
-                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
+    public RenameIndexClusterStateExecutor(Settings settings,
+                                           IndexNameExpressionResolver indexNameExpressionResolver) {
         logger = Loggers.getLogger(getClass(), settings);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState, ExchangeIndexNameRequest request) throws Exception {
-        final String sourceIndexName = request.sourceIndexName();
-        final String targetIndexName = request.targetIndexName();
+    public ClusterState execute(ClusterState currentState, RenameIndexRequest request) throws Exception {
+        final String[] sourceIndexName = request.sourceIndexName();
+        final String[] targetIndexName = request.targetIndexName();
 
-        final String backupIndexName = BACKUP_PREFIX +
-                                       ((sourceIndexName.startsWith(".")) ? "" : ".") +
-                                       sourceIndexName;
-        logger.info("exchange index names '{}' <-> '{}'", sourceIndexName, targetIndexName);
+        logger.info("rename indexes '[{}]' to '[{}]'", sourceIndexName, targetIndexName);
 
-        ClusterState state = currentState;
-        // source -> backup
-        state = renameIndex(state, sourceIndexName, backupIndexName);
-        // target -> source
-        state = renameIndex(state, targetIndexName, sourceIndexName);
-        // backup -> target
-        state = renameIndex(state, backupIndexName, targetIndexName);
-        return state;
-    }
-
-
-    private ClusterState renameIndex(ClusterState currentState,
-                                String sourceIndexName,
-                                String targetIndexName) {
         MetaData.Builder mdBuilder = null;
         ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
             .blocks(currentState.blocks());
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("rename index '{}' to '{}'", sourceIndexName, targetIndexName);
-        }
-
         Index[] sourceIndices = indexNameExpressionResolver.concreteIndices(currentState,
             STRICT_INDICES_OPTIONS, sourceIndexName);
+        Index[] sourceIndicesOrdered = new Index[sourceIndexName.length];
+
+        // ensure the order in input is respected
+        for (int i = 0; i < sourceIndexName.length; i++) {
+            for (int j = 0; j < sourceIndices.length; j++) {
+                if (sourceIndexName[i].equals(sourceIndices[j].getName())) {
+                    sourceIndicesOrdered[i] = sourceIndices[j];
+                    break;
+                }
+            }
+        }
 
         MetaData metaData = currentState.getMetaData();
         mdBuilder = MetaData.builder(metaData);
 
-        renameIndexMetaData(metaData, mdBuilder, blocksBuilder, sourceIndices[0], targetIndexName);
+        renameIndices(metaData, mdBuilder, blocksBuilder, sourceIndicesOrdered, targetIndexName);
 
         // The MetaData will always be overridden (and not merged!) when applying it on a cluster state builder.
         // So we must re-build the state with the latest modifications before we pass this state to possible modifiers
@@ -95,19 +85,5 @@ public class ExchangeIndexNameClusterStateExecutor extends DDLClusterStateTaskEx
         // Otherwise they would operate on the old MetaData and would just ignore any modifications.
         currentState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
         return currentState;
-    }
-
-    private static void renameIndexMetaData(MetaData metaData,
-                                            MetaData.Builder mdBuilder,
-                                            ClusterBlocks.Builder blocksBuilder,
-                                            Index sourceIndex,
-                                            String targetIndexName) {
-        IndexMetaData indexMetaData = metaData.getIndexSafe(sourceIndex);
-        IndexMetaData targetIndexMetadata = IndexMetaData.builder(indexMetaData)
-            .index(targetIndexName).build();
-        mdBuilder.remove(sourceIndex.getName());
-        mdBuilder.put(targetIndexMetadata, true);
-        blocksBuilder.removeIndexBlocks(sourceIndex.getName());
-        blocksBuilder.addBlocks(targetIndexMetadata);
     }
 }

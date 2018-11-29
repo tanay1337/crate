@@ -38,9 +38,9 @@ import io.crate.analyze.TableParameterInfo;
 import io.crate.concurrent.CompletableFutures;
 import io.crate.concurrent.MultiBiConsumer;
 import io.crate.data.Row;
-import io.crate.execution.ddl.index.ExchangeIndexNameRequest;
-import io.crate.execution.ddl.index.ExchangeIndexNameResponse;
-import io.crate.execution.ddl.index.TransportExchangeIndexNameAction;
+import io.crate.execution.ddl.index.RenameIndexRequest;
+import io.crate.execution.ddl.index.RenameIndexResponse;
+import io.crate.execution.ddl.index.TransportRenameIndexNameAction;
 import io.crate.execution.support.ChainableAction;
 import io.crate.execution.support.ChainableActions;
 import io.crate.metadata.IndexParts;
@@ -56,7 +56,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -128,7 +127,7 @@ public class AlterTableOperation {
     private final TransportOpenCloseTableOrPartitionAction transportOpenCloseTableOrPartitionAction;
     private final TransportResizeAction transportResizeAction;
     private final TransportDeleteIndexAction transportDeleteIndexAction;
-    private final TransportExchangeIndexNameAction transportExchangeIndexNameAction;
+    private final TransportRenameIndexNameAction transportRenameIndexNameAction;
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final Logger logger;
@@ -146,7 +145,7 @@ public class AlterTableOperation {
                                TransportOpenCloseTableOrPartitionAction transportOpenCloseTableOrPartitionAction,
                                TransportResizeAction transportResizeAction,
                                TransportDeleteIndexAction transportDeleteIndexAction,
-                               TransportExchangeIndexNameAction transportExchangeIndexNameAction,
+                               TransportRenameIndexNameAction transportRenameIndexNameAction,
                                SQLOperations sqlOperations,
                                IndexScopedSettings indexScopedSettings,
                                Settings settings,
@@ -161,7 +160,7 @@ public class AlterTableOperation {
         this.transportRenameTableAction = transportRenameTableAction;
         this.transportResizeAction = transportResizeAction;
         this.transportDeleteIndexAction = transportDeleteIndexAction;
-        this.transportExchangeIndexNameAction = transportExchangeIndexNameAction;
+        this.transportRenameIndexNameAction = transportRenameIndexNameAction;
         this.transportOpenCloseTableOrPartitionAction = transportOpenCloseTableOrPartitionAction;
         this.indexScopedSettings = indexScopedSettings;
         this.sqlOperations = sqlOperations;
@@ -290,7 +289,7 @@ public class AlterTableOperation {
             assert partitionName.isPresent() : "Resizing operations for partitioned tables " +
                                                "are only supported at partition level";
             sourceIndexName = partitionName.get().asIndexName();
-             sourceIndexAlias = table.ident().indexName();
+            sourceIndexAlias = table.ident().indexName();
         } else {
             sourceIndexName = table.ident().indexName();
             sourceIndexAlias = null;
@@ -317,25 +316,42 @@ public class AlterTableOperation {
             () -> deleteIndex(targetIndexName)
         ));
 
-        // index rename
+        // close index
         actions.add(new ChainableAction<>(
             () -> closeTable(sourceIndexName, targetIndexName),
             () -> openTable(sourceIndexName, targetIndexName)
         ));
 
+        // index rename
+        final String backupIndexName = ".backup" + sourceIndexName;
+        String[] renameSourceNames = new String[2];
+        String[] renameTargetNames = new String[2];
+        renameSourceNames[0] = sourceIndexName;
+        renameTargetNames[0] = backupIndexName;
+        renameSourceNames[1] = targetIndexName;
+        renameTargetNames[1] = sourceIndexName;
+
+        String[] renameSourceNamesReverse = new String[2];
+        String[] renameTargetNamesReverse = new String[2];
+        renameTargetNamesReverse[0] = renameSourceNames[1];
+        renameTargetNamesReverse[1] = renameSourceNames[0];
+        renameSourceNamesReverse[0] = renameTargetNames[1];
+        renameSourceNamesReverse[1] = renameTargetNames[0];
+
         actions.add(new ChainableAction<>(
-            () -> exchangeIndexNames(sourceIndexName, targetIndexName),
-            () -> exchangeIndexNames(targetIndexName, sourceIndexName)
+            () -> renameIndices(renameSourceNames, renameTargetNames),
+            () -> renameIndices(renameSourceNamesReverse, renameTargetNamesReverse)
         ));
 
+        // open index
         actions.add(new ChainableAction<>(
             () -> openTable(sourceIndexName),
             () -> closeTable(sourceIndexName)
         ));
 
-        // delete original index (that is now renamed to target index)
+        // delete backup index
         actions.add(new ChainableAction<>(
-            () -> deleteIndex(targetIndexName),
+            () -> deleteIndex(backupIndexName),
             () -> CompletableFuture.completedFuture(-1L)
         ));
 
@@ -378,7 +394,7 @@ public class AlterTableOperation {
         UpdateSettingsRequest request = new UpdateSettingsRequest(settings, indices);
         request.indicesOptions(IndicesOptions.lenientExpandOpen());
 
-        FutureActionListener<UpdateSettingsResponse, Long> listener
+        FutureActionListener<AcknowledgedResponse, Long> listener
             = new FutureActionListener<>(r -> (r.isAcknowledged()) ? 0L : -1L);
 
         transportUpdateSettingsAction.execute(request, ActionListener.wrap(response -> {
@@ -421,7 +437,9 @@ public class AlterTableOperation {
 
         ResizeRequest request = new ResizeRequest(targetIndexName, sourceIndexName);
         request.getTargetIndexRequest().settings(targetIndexSettings);
-        request.getTargetIndexRequest().alias(new Alias(sourceIndexAlias));
+        if (sourceIndexAlias != null) {
+            request.getTargetIndexRequest().alias(new Alias(sourceIndexAlias));
+        }
         request.setResizeType(ResizeType.SHRINK);
         request.setCopySettings(Boolean.TRUE);
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT);
@@ -454,16 +472,16 @@ public class AlterTableOperation {
     private CompletableFuture<Long> deleteIndex(String indexName) {
         DeleteIndexRequest request = new DeleteIndexRequest(indexName);
 
-        FutureActionListener<DeleteIndexResponse, Long> listener = new FutureActionListener<>(r -> 0L);
+        FutureActionListener<AcknowledgedResponse, Long> listener = new FutureActionListener<>(r -> 0L);
         transportDeleteIndexAction.execute(request, listener);
         return listener;
     }
 
-    private CompletableFuture<Long> exchangeIndexNames(String indexName1,
-                                                       String indexName2) {
-        ExchangeIndexNameRequest request = new ExchangeIndexNameRequest(indexName1, indexName2);
-        FutureActionListener<ExchangeIndexNameResponse, Long> listener = new FutureActionListener<>(r -> -1L);
-        transportExchangeIndexNameAction.execute(request, listener);
+    private CompletableFuture<Long> renameIndices(String[] sourceIndexNames,
+                                                  String[] targetIndexNames) {
+        RenameIndexRequest request = new RenameIndexRequest(sourceIndexNames, targetIndexNames);
+        FutureActionListener<RenameIndexResponse, Long> listener = new FutureActionListener<>(r -> -1L);
+        transportRenameIndexNameAction.execute(request, listener);
         return listener;
     }
 

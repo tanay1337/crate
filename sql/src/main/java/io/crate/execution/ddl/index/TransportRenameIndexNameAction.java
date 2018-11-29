@@ -23,7 +23,7 @@
 package io.crate.execution.ddl.index;
 
 import io.crate.execution.ddl.AbstractDDLTransportAction;
-import io.crate.metadata.cluster.ExchangeIndexNameClusterStateExecutor;
+import io.crate.metadata.cluster.RenameIndexClusterStateExecutor;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,36 +39,35 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 @Singleton
-public class TransportExchangeIndexNameAction extends AbstractDDLTransportAction<ExchangeIndexNameRequest, ExchangeIndexNameResponse> {
+public class TransportRenameIndexNameAction extends AbstractDDLTransportAction<RenameIndexRequest, RenameIndexResponse> {
 
-    private static final String ACTION_NAME = "internal:crate:sql/index/exchange_name";
+    private static final String ACTION_NAME = "internal:crate:sql/index/rename";
     private static final IndicesOptions STRICT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, false);
 
-    private final ExchangeIndexNameClusterStateExecutor executor;
+    private final RenameIndexClusterStateExecutor executor;
 
     @Inject
-    public TransportExchangeIndexNameAction(Settings settings,
-                                            TransportService transportService,
-                                            ClusterService clusterService,
-                                            ThreadPool threadPool,
-                                            ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportRenameIndexNameAction(Settings settings,
+                                          TransportService transportService,
+                                          ClusterService clusterService,
+                                          ThreadPool threadPool,
+                                          ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, ExchangeIndexNameRequest::new, ExchangeIndexNameResponse::new, ExchangeIndexNameResponse::new,
+            indexNameExpressionResolver, RenameIndexRequest::new, RenameIndexResponse::new, RenameIndexResponse::new,
             "exchange-index-name");
-        executor = new ExchangeIndexNameClusterStateExecutor(settings, indexNameExpressionResolver);
+        executor = new RenameIndexClusterStateExecutor(settings, indexNameExpressionResolver);
     }
 
     @Override
-    public ClusterStateTaskExecutor<ExchangeIndexNameRequest> clusterStateTaskExecutor(ExchangeIndexNameRequest request) {
+    public ClusterStateTaskExecutor<RenameIndexRequest> clusterStateTaskExecutor(RenameIndexRequest request) {
         return executor;
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ExchangeIndexNameRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(RenameIndexRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
             indexNameExpressionResolver.concreteIndexNames(state, STRICT_INDICES_OPTIONS,
-                request.sourceIndexName(),
-                request.targetIndexName()));
+                request.sourceIndexName()));
     }
 }

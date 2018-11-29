@@ -31,33 +31,35 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class ExchangeIndexNameRequest extends AcknowledgedRequest<ExchangeIndexNameRequest> {
+public class RenameIndexRequest extends AcknowledgedRequest<RenameIndexRequest> {
 
-    private String sourceIndexName;
-    private String targetIndexName;
+    private String[] sourceIndexName;
+    private String[] targetIndexName;
 
-    ExchangeIndexNameRequest() {
+    RenameIndexRequest() {
     }
 
-    public ExchangeIndexNameRequest(String sourceIndexName, String targetIndexName) {
+    public RenameIndexRequest(String[] sourceIndexName, String[] targetIndexName) {
         this.sourceIndexName = sourceIndexName;
         this.targetIndexName = targetIndexName;
 
     }
 
-    public String sourceIndexName() {
+    public String[] sourceIndexName() {
         return sourceIndexName;
     }
 
-    public String targetIndexName() {
+    public String[] targetIndexName() {
         return targetIndexName;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (sourceIndexName == null || targetIndexName == null || sourceIndexName.isEmpty() || targetIndexName.isEmpty()) {
+        if (sourceIndexName == null || targetIndexName == null || sourceIndexName.length == 0 || targetIndexName.length == 0) {
             validationException = addValidationError("source and target index names must not be null/empty", null);
+        } else if (sourceIndexName.length != targetIndexName.length) {
+            validationException = addValidationError("source and target input indexes must be of the same size", null);
         }
         return validationException;
     }
@@ -65,14 +67,14 @@ public class ExchangeIndexNameRequest extends AcknowledgedRequest<ExchangeIndexN
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        sourceIndexName = in.readString();
-        targetIndexName = in.readString();
+        sourceIndexName = in.readStringArray();
+        targetIndexName = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(sourceIndexName);
-        out.writeString(targetIndexName);
+        out.writeStringArray(sourceIndexName);
+        out.writeStringArray(targetIndexName);
     }
 }
