@@ -26,6 +26,7 @@ import io.crate.execution.ddl.AbstractDDLTransportAction;
 import io.crate.metadata.cluster.RenameIndexClusterStateExecutor;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -39,7 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 @Singleton
-public class TransportRenameIndexNameAction extends AbstractDDLTransportAction<RenameIndexRequest, RenameIndexResponse> {
+public class TransportRenameIndexNameAction extends AbstractDDLTransportAction<RenameIndexRequest, AcknowledgedResponse> {
 
     private static final String ACTION_NAME = "internal:crate:sql/index/rename";
     private static final IndicesOptions STRICT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, false);
@@ -54,7 +55,7 @@ public class TransportRenameIndexNameAction extends AbstractDDLTransportAction<R
                                           ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, RenameIndexRequest::new, RenameIndexResponse::new, RenameIndexResponse::new,
+            indexNameExpressionResolver, RenameIndexRequest::new, AcknowledgedResponse::new, AcknowledgedResponse::new,
             "exchange-index-name");
         executor = new RenameIndexClusterStateExecutor(settings, indexNameExpressionResolver);
     }

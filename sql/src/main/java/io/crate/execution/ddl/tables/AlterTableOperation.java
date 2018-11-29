@@ -39,7 +39,6 @@ import io.crate.concurrent.CompletableFutures;
 import io.crate.concurrent.MultiBiConsumer;
 import io.crate.data.Row;
 import io.crate.execution.ddl.index.RenameIndexRequest;
-import io.crate.execution.ddl.index.RenameIndexResponse;
 import io.crate.execution.ddl.index.TransportRenameIndexNameAction;
 import io.crate.execution.support.ChainableAction;
 import io.crate.execution.support.ChainableActions;
@@ -491,7 +490,7 @@ public class AlterTableOperation {
     private CompletableFuture<Long> renameIndices(String[] sourceIndexNames,
                                                   String[] targetIndexNames) {
         RenameIndexRequest request = new RenameIndexRequest(sourceIndexNames, targetIndexNames);
-        FutureActionListener<RenameIndexResponse, Long> listener = new FutureActionListener<>(r -> -1L);
+        FutureActionListener<AcknowledgedResponse, Long> listener = new FutureActionListener<>(r -> -1L);
         transportRenameIndexNameAction.execute(request, listener);
         return listener;
     }
