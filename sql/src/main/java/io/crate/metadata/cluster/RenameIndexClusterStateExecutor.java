@@ -23,13 +23,13 @@
 package io.crate.metadata.cluster;
 
 import io.crate.execution.ddl.index.RenameIndexRequest;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
@@ -45,7 +45,8 @@ public class RenameIndexClusterStateExecutor extends DDLClusterStateTaskExecutor
 
     public RenameIndexClusterStateExecutor(Settings settings,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        logger = Loggers.getLogger(getClass(), settings);
+        logger = LogManager.getLogger(getClass());
+
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
