@@ -114,7 +114,8 @@ import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_
 @Singleton
 public class AlterTableOperation {
 
-    private static final String SHRINK_PREFIX = ".shrinked";
+    private static final String SHRINK_PREFIX = "." + "shrinked" + ".";
+    private static final String BACKUP_PREFIX = "." + "backup" + ".";
 
     private final ClusterService clusterService;
     private final TransportPutIndexTemplateAction transportPutIndexTemplateAction;
@@ -225,8 +226,7 @@ public class AlterTableOperation {
         final DocTableInfo table = analysis.table();
         final boolean includesNumberOfShardsSetting = settings.hasValue(SETTING_NUMBER_OF_SHARDS);
         final boolean isResizeOperationRequired = includesNumberOfShardsSetting &&
-                                                  (!table.isPartitioned()
-                                                   || (table.isPartitioned() && analysis.partitionName().isPresent()));
+                                                  (!table.isPartitioned() || analysis.partitionName().isPresent());
 
         if (isResizeOperationRequired) {
             if (settings.size() > 1) {
@@ -295,7 +295,7 @@ public class AlterTableOperation {
         }
         String targetIndexName = SHRINK_PREFIX + sourceIndexName;
 
-        int targetNumberOfShards = analysis.tableParameter().settings().getAsInt(SETTING_NUMBER_OF_SHARDS, 0);
+        final Integer targetNumberOfShards = getValidNumberOfShards(analysis.tableParameter().settings());
         validateForResizeRequest(sourceIndexName, targetNumberOfShards);
 
         List<ChainableAction<Long>> actions = new ArrayList<>(7);
@@ -322,7 +322,7 @@ public class AlterTableOperation {
         ));
 
         // index rename
-        final String backupIndexName = ".backup" + sourceIndexName;
+        final String backupIndexName = BACKUP_PREFIX + sourceIndexName;
         String[] renameSourceNames = new String[2];
         String[] renameTargetNames = new String[2];
         renameSourceNames[0] = sourceIndexName;
@@ -366,6 +366,13 @@ public class AlterTableOperation {
         final IndexMetaData indexMetaData = clusterService.state().metaData().index(indexName);
         validateNumberOfShardsForResize(indexMetaData, targetNumberOfShards);
         validateReadOnlyIndexForResize(indexMetaData);
+    }
+
+    @VisibleForTesting
+    static Integer getValidNumberOfShards(final Settings settings) {
+        final Integer numberOfShards = settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null);
+        ensureNotNull(numberOfShards, "Invalid setting 'number_of_shards' provided in input");
+        return numberOfShards;
     }
 
     @VisibleForTesting
@@ -879,5 +886,11 @@ public class AlterTableOperation {
             return result;
         }
 
+    }
+
+    static void ensureNotNull(Object value, String message) {
+        if (value == null) {
+            throw new IllegalArgumentException(message);
+        }
     }
 }
