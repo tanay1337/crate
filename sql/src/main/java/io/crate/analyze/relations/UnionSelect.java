@@ -30,7 +30,6 @@ import io.crate.metadata.Path;
 import io.crate.metadata.table.Operation;
 import io.crate.sql.tree.QualifiedName;
 
-import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,7 +39,7 @@ public class UnionSelect implements QueriedRelation {
     private final Fields fields;
     private final QueriedRelation left;
     private final QueriedRelation right;
-    private QualifiedName name;
+    private final QualifiedName name;
 
     public UnionSelect(QueriedRelation left, QueriedRelation right) {
         this.left = left;
@@ -84,11 +83,6 @@ public class UnionSelect implements QueriedRelation {
     @Override
     public QualifiedName getQualifiedName() {
         return name;
-    }
-
-    @Override
-    public void setQualifiedName(@Nonnull QualifiedName qualifiedName) {
-        name = qualifiedName;
     }
 
     @Override

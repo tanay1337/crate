@@ -33,7 +33,6 @@ import io.crate.metadata.Path;
 import io.crate.metadata.table.Operation;
 import io.crate.sql.tree.QualifiedName;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
@@ -96,11 +95,6 @@ public class OrderedLimitedRelation implements QueriedRelation {
     @Override
     public QualifiedName getQualifiedName() {
         return childRelation.getQualifiedName();
-    }
-
-    @Override
-    public void setQualifiedName(@Nonnull QualifiedName qualifiedName) {
-        childRelation.setQualifiedName(qualifiedName);
     }
 
     public QueriedRelation childRelation() {

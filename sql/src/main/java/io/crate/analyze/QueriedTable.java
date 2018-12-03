@@ -30,7 +30,6 @@ import io.crate.metadata.Path;
 import io.crate.metadata.table.Operation;
 import io.crate.sql.tree.QualifiedName;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Iterator;
@@ -96,11 +95,6 @@ public final class QueriedTable<TR extends AbstractTableRelation> implements Que
     @Override
     public QualifiedName getQualifiedName() {
         return tableRelation.getQualifiedName();
-    }
-
-    @Override
-    public void setQualifiedName(@Nonnull QualifiedName qualifiedName) {
-        tableRelation.setQualifiedName(qualifiedName);
     }
 
     @Override

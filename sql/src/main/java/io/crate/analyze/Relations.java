@@ -34,7 +34,6 @@ import io.crate.metadata.Functions;
 import io.crate.metadata.Path;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.TransactionContext;
-import io.crate.sql.tree.QualifiedName;
 
 import java.util.Collection;
 import java.util.List;
@@ -61,34 +60,24 @@ class Relations {
                                              TransactionContext transactionContext,
                                              AnalyzedRelation relation,
                                              QuerySpec querySpec) {
-        QueriedRelation newRelation;
         if (relation instanceof AbstractTableRelation) {
             AbstractTableRelation<?> tableRelation = (AbstractTableRelation<?>) relation;
             EvaluatingNormalizer evalNormalizer = new EvaluatingNormalizer(
                 functions, RowGranularity.CLUSTER, null, tableRelation);
 
-            newRelation = new QueriedTable<>(
+            return new QueriedTable<>(
                 false,
                 tableRelation,
                 querySpec.copyAndReplace(s -> evalNormalizer.normalize(s, transactionContext)));
         } else {
             QueriedRelation queriedRelation = (QueriedRelation) relation;
-            newRelation = new QueriedSelectRelation(
+            QueriedRelation newRelation = new QueriedSelectRelation(
                 queriedRelation.isDistinct(),
                 queriedRelation,
                 namesFromOutputs(querySpec.outputs()),
                 querySpec
             );
-            newRelation = (QueriedRelation) normalizer.normalize(newRelation, transactionContext);
+            return (QueriedRelation) normalizer.normalize(newRelation, transactionContext);
         }
-        if (newRelation.where().hasQuery() && newRelation.getQualifiedName().equals(relation.getQualifiedName())) {
-            // This relation will be represented as a subquery and needs a proper QualifiedName.
-            // If there is no distinct QualifiedName, create one by merging all parts of the old QualifiedName
-            // e.g. "doc"."users" -> "doc.users"
-            newRelation.setQualifiedName(QualifiedName.of(relation.getQualifiedName().toString()));
-        } else {
-            newRelation.setQualifiedName(relation.getQualifiedName());
-        }
-        return newRelation;
     }
 }

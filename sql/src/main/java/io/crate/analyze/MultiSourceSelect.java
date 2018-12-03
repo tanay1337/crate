@@ -36,7 +36,6 @@ import io.crate.metadata.TransactionContext;
 import io.crate.metadata.table.Operation;
 import io.crate.sql.tree.QualifiedName;
 
-import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -52,7 +51,7 @@ public class MultiSourceSelect implements QueriedRelation {
     private final Fields fields;
     private final List<JoinPair> joinPairs;
     private final boolean isDistinct;
-    private QualifiedName qualifiedName;
+    private final QualifiedName qualifiedName;
     private QuerySpec querySpec;
 
     /**
@@ -141,9 +140,6 @@ public class MultiSourceSelect implements QueriedRelation {
         assert sources.size() > 1 : "MultiSourceSelect requires at least 2 relations";
         this.qualifiedName = generateName(sources.keySet());
         this.sources = sources;
-        for (Map.Entry<QualifiedName, AnalyzedRelation> entry : sources.entrySet()) {
-            entry.getValue().setQualifiedName(entry.getKey());
-        }
         this.querySpec = querySpec;
         this.joinPairs = joinPairs;
         assert outputNames.size() == querySpec.outputs().size() : "size of outputNames and outputSymbols must match";
@@ -209,11 +205,6 @@ public class MultiSourceSelect implements QueriedRelation {
     @Override
     public QualifiedName getQualifiedName() {
         return qualifiedName;
-    }
-
-    @Override
-    public void setQualifiedName(@Nonnull QualifiedName qualifiedName) {
-        this.qualifiedName = qualifiedName;
     }
 
     @Override

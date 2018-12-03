@@ -31,7 +31,6 @@ import io.crate.metadata.RelationName;
 import io.crate.metadata.table.Operation;
 import io.crate.sql.tree.QualifiedName;
 
-import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -98,10 +97,5 @@ public final class AnalyzedView implements QueriedRelation {
     @Override
     public QualifiedName getQualifiedName() {
         return relation.getQualifiedName();
-    }
-
-    @Override
-    public void setQualifiedName(@Nonnull QualifiedName qualifiedName) {
-        relation.setQualifiedName(qualifiedName);
     }
 }

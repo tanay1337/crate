@@ -38,7 +38,6 @@ import io.crate.types.DataTypes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.function.Predicate;
@@ -53,7 +52,7 @@ public class CopyFromReturnSummaryAnalyzedStatement extends CopyFromAnalyzedStat
         new Field(this, new ColumnIdent("errors"), DataTypes.OBJECT)
     );
 
-    private QualifiedName qualifiedName;
+    private final QualifiedName qualifiedName = new QualifiedName("COPY FROM SUMMARY");
 
     CopyFromReturnSummaryAnalyzedStatement(DocTableInfo table,
                                            Settings settings,
@@ -83,10 +82,5 @@ public class CopyFromReturnSummaryAnalyzedStatement extends CopyFromAnalyzedStat
     @Override
     public QualifiedName getQualifiedName() {
         return qualifiedName;
-    }
-
-    @Override
-    public void setQualifiedName(@Nonnull QualifiedName qualifiedName) {
-        this.qualifiedName = qualifiedName;
     }
 }

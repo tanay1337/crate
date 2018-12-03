@@ -20,69 +20,43 @@
  * agreement.
  */
 
-package io.crate.analyze;
+package io.crate.analyze.relations;
 
-import io.crate.analyze.relations.AnalyzedRelationVisitor;
-import io.crate.analyze.relations.QueriedRelation;
+import io.crate.analyze.Fields;
 import io.crate.exceptions.ColumnUnknownException;
 import io.crate.expression.symbol.Field;
-import io.crate.expression.symbol.Symbol;
 import io.crate.metadata.Path;
 import io.crate.metadata.table.Operation;
 import io.crate.sql.tree.QualifiedName;
 
-import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 
-public class QueriedSelectRelation implements QueriedRelation {
+public final class AnalyzedAliasedRelation implements AnalyzedRelation {
 
+    private final String alias;
+    private final AnalyzedRelation childRelation;
     private final Fields fields;
-    private final QuerySpec querySpec;
-    private final boolean isDistinct;
-    private final QueriedRelation subRelation;
 
-    public QueriedSelectRelation(boolean isDistinct,
-                                 QueriedRelation subRelation,
-                                 Collection<? extends Path> outputNames,
-                                 QuerySpec querySpec) {
-        this.isDistinct = isDistinct;
-        this.subRelation = subRelation;
-        this.querySpec = querySpec;
-        this.fields = new Fields(outputNames.size());
-        Iterator<Symbol> outputsIterator = querySpec.outputs().iterator();
-        for (Path path : outputNames) {
-            fields.add(path, new Field(this, path, outputsIterator.next().valueType()));
+    public AnalyzedAliasedRelation(String alias, AnalyzedRelation childRelation) {
+        this.alias = alias;
+        this.childRelation = childRelation;
+        this.fields = new Fields(childRelation.fields().size());
+        for (Field field : childRelation.fields()) {
+            this.fields.add(field.path(), new Field(this, field.path(), field.valueType()));
         }
-    }
-
-    public QueriedRelation subRelation() {
-        return subRelation;
-    }
-
-    @Override
-    public QuerySpec querySpec() {
-        return querySpec;
-    }
-
-    @Override
-    public boolean isDistinct() {
-        return isDistinct;
     }
 
     @Override
     public <C, R> R accept(AnalyzedRelationVisitor<C, R> visitor, C context) {
-        return visitor.visitQueriedSelectRelation(this, context);
+        return visitor.visitAliasRelation(this, context);
     }
 
-    @Nullable
     @Override
     public Field getField(Path path, Operation operation) throws UnsupportedOperationException, ColumnUnknownException {
-        if (operation != Operation.READ) {
-            throw new UnsupportedOperationException("getField on QueriedSelectRelation is only supported for READ operations");
+        if (operation == Operation.READ) {
+            return fields.get(path);
         }
-        return fields.get(path);
+        throw new UnsupportedOperationException("Fields on views are read-only");
     }
 
     @Override
@@ -92,6 +66,19 @@ public class QueriedSelectRelation implements QueriedRelation {
 
     @Override
     public QualifiedName getQualifiedName() {
-        return subRelation.getQualifiedName();
+        return null;
+    }
+
+    public AnalyzedRelation childRelation() {
+        return childRelation;
+    }
+
+    public String alias() {
+        return alias;
+    }
+
+    @Override
+    public String toString() {
+        return childRelation.toString() + " AS " + alias;
     }
 }

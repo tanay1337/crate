@@ -31,7 +31,6 @@ import io.crate.types.ArrayType;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,10 +46,10 @@ public abstract class AbstractTableRelation<T extends TableInfo> implements Anal
         && input.valueType().id() == ArrayType.ID
         && ((ArrayType) input.valueType()).innerType().equals(DataTypes.OBJECT);
 
-    protected T tableInfo;
+    protected final T tableInfo;
+    private final QualifiedName qualifiedName;
     private List<Field> outputs;
     private Map<Path, Reference> allocatedFields = new HashMap<>();
-    private QualifiedName qualifiedName;
 
     public AbstractTableRelation(T tableInfo) {
         this.tableInfo = tableInfo;
@@ -144,11 +143,6 @@ public abstract class AbstractTableRelation<T extends TableInfo> implements Anal
     @Override
     public QualifiedName getQualifiedName() {
         return qualifiedName;
-    }
-
-    @Override
-    public void setQualifiedName(@Nonnull QualifiedName qualifiedName) {
-        this.qualifiedName = qualifiedName;
     }
 
     @Override
