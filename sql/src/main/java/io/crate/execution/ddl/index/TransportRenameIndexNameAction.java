@@ -25,7 +25,6 @@ package io.crate.execution.ddl.index;
 import io.crate.execution.ddl.AbstractDDLTransportAction;
 import io.crate.metadata.cluster.RenameIndexClusterStateExecutor;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -40,10 +39,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 @Singleton
-public class TransportRenameIndexNameAction extends AbstractDDLTransportAction<RenameIndexRequest, AcknowledgedResponse> {
+public class TransportRenameIndexNameAction extends AbstractDDLTransportAction<BulkRenameIndexRequest, AcknowledgedResponse> {
 
-    private static final String ACTION_NAME = "internal:crate:sql/index/rename";
-    private static final IndicesOptions STRICT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, false);
+    private static final String ACTION_NAME = "internal:crate:sql/index/rename_bulk";
 
     private final RenameIndexClusterStateExecutor executor;
 
@@ -55,20 +53,18 @@ public class TransportRenameIndexNameAction extends AbstractDDLTransportAction<R
                                           ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, RenameIndexRequest::new, AcknowledgedResponse::new, AcknowledgedResponse::new,
+            indexNameExpressionResolver, BulkRenameIndexRequest::new, AcknowledgedResponse::new, AcknowledgedResponse::new,
             "exchange-index-name");
-        executor = new RenameIndexClusterStateExecutor(settings, indexNameExpressionResolver);
+        executor = new RenameIndexClusterStateExecutor();
     }
 
     @Override
-    public ClusterStateTaskExecutor<RenameIndexRequest> clusterStateTaskExecutor(RenameIndexRequest request) {
+    public ClusterStateTaskExecutor<BulkRenameIndexRequest> clusterStateTaskExecutor(BulkRenameIndexRequest request) {
         return executor;
     }
 
     @Override
-    protected ClusterBlockException checkBlock(RenameIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, STRICT_INDICES_OPTIONS,
-                request.sourceIndexName()));
+    protected ClusterBlockException checkBlock(BulkRenameIndexRequest request, ClusterState state) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, request.sourceIndices());
     }
 }

@@ -147,9 +147,20 @@ public class AlterTableOperationTest extends CrateUnitTest {
     }
 
     @Test
+    public void testNumberOfShardsRequestedNotAFactorOfCurrentIsNotSupported() {
+        IndexMetaData indexMetaData = IndexMetaData.builder("t1")
+            .settings(baseIndexSettings())
+            .build();
+
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage("Requested number of shards: <3> needs to be a factor of the current one: <5>");
+        AlterTableOperation.validateNumberOfShardsForResize(indexMetaData, 3);
+    }
+
+    @Test
     public void testNullNumberOfShardsRequestedIsNotPermitted() {
         Settings settings = Settings.EMPTY;
-        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expect(NullPointerException.class);
         expectedException.expectMessage("Invalid setting 'number_of_shards' provided in input");
         AlterTableOperation.getValidNumberOfShards(settings);
     }

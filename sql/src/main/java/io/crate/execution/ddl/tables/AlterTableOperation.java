@@ -38,7 +38,7 @@ import io.crate.analyze.TableParameterInfo;
 import io.crate.concurrent.CompletableFutures;
 import io.crate.concurrent.MultiBiConsumer;
 import io.crate.data.Row;
-import io.crate.execution.ddl.index.RenameIndexRequest;
+import io.crate.execution.ddl.index.BulkRenameIndexRequest;
 import io.crate.execution.ddl.index.TransportRenameIndexNameAction;
 import io.crate.execution.support.ChainableAction;
 import io.crate.execution.support.ChainableActions;
@@ -50,7 +50,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -73,12 +72,14 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
@@ -100,6 +101,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -294,14 +296,15 @@ public class AlterTableOperation {
             sourceIndexAlias = null;
         }
         String targetIndexName = SHRINK_PREFIX + sourceIndexName;
+        ClusterState currentState = clusterService.state();
 
         final Integer targetNumberOfShards = getValidNumberOfShards(analysis.tableParameter().settings());
-        validateForResizeRequest(sourceIndexName, targetNumberOfShards);
+        validateForResizeRequest(currentState, sourceIndexName, targetNumberOfShards);
 
         List<ChainableAction<Long>> actions = new ArrayList<>(7);
 
         // pickup node
-        DiscoveryNode resizeNode = getNodeForResize();
+        DiscoveryNode resizeNode = getNodeForResize(currentState);
 
         // change allocation
         actions.add(new ChainableAction<>(
@@ -323,23 +326,17 @@ public class AlterTableOperation {
 
         // index rename
         final String backupIndexName = BACKUP_PREFIX + sourceIndexName;
-        String[] renameSourceNames = new String[2];
-        String[] renameTargetNames = new String[2];
-        renameSourceNames[0] = sourceIndexName;
-        renameTargetNames[0] = backupIndexName;
-        renameSourceNames[1] = targetIndexName;
-        renameTargetNames[1] = sourceIndexName;
 
-        String[] renameSourceNamesReverse = new String[2];
-        String[] renameTargetNamesReverse = new String[2];
-        renameTargetNamesReverse[0] = renameSourceNames[1];
-        renameTargetNamesReverse[1] = renameSourceNames[0];
-        renameSourceNamesReverse[0] = renameTargetNames[1];
-        renameSourceNamesReverse[1] = renameTargetNames[0];
+        BulkRenameIndexRequest bulkRenameRequest = new BulkRenameIndexRequest(2);
+        bulkRenameRequest.addRenameIndexAction(sourceIndexName, backupIndexName);
+        bulkRenameRequest.addRenameIndexAction(targetIndexName, sourceIndexName);
 
+        BulkRenameIndexRequest bulkReverseRenameRequest = new BulkRenameIndexRequest(2);
+        bulkReverseRenameRequest.addRenameIndexAction(sourceIndexName, targetIndexName);
+        bulkReverseRenameRequest.addRenameIndexAction(backupIndexName, sourceIndexName);
         actions.add(new ChainableAction<>(
-            () -> renameIndices(renameSourceNames, renameTargetNames),
-            () -> renameIndices(renameSourceNamesReverse, renameTargetNamesReverse)
+            () -> renameIndicesBulk(bulkRenameRequest),
+            () -> renameIndicesBulk(bulkReverseRenameRequest)
         ));
 
         // open index
@@ -362,8 +359,8 @@ public class AlterTableOperation {
         return ChainableActions.run(actions);
     }
 
-    private void validateForResizeRequest(String indexName, int targetNumberOfShards) {
-        final IndexMetaData indexMetaData = clusterService.state().metaData().index(indexName);
+    private static void validateForResizeRequest(ClusterState clusterState, String indexName, int targetNumberOfShards) {
+        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
         validateNumberOfShardsForResize(indexMetaData, targetNumberOfShards);
         validateReadOnlyIndexForResize(indexMetaData);
     }
@@ -371,7 +368,7 @@ public class AlterTableOperation {
     @VisibleForTesting
     static Integer getValidNumberOfShards(final Settings settings) {
         final Integer numberOfShards = settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null);
-        ensureNotNull(numberOfShards, "Invalid setting 'number_of_shards' provided in input");
+        Objects.requireNonNull(numberOfShards, "Invalid setting 'number_of_shards' provided in input");
         return numberOfShards;
     }
 
@@ -381,8 +378,15 @@ public class AlterTableOperation {
         if (currentNumberOfShards == targetNumberOfShards) {
             throw new IllegalArgumentException(
                 String.format("Table/partition is already allocated <%d> shards", currentNumberOfShards));
-        } else if (targetNumberOfShards > currentNumberOfShards) {
+        }
+        if (targetNumberOfShards > currentNumberOfShards) {
             throw new IllegalArgumentException("Increasing the number of shards is not supported");
+        }
+        if (currentNumberOfShards % targetNumberOfShards != 0) {
+            throw new IllegalArgumentException(
+                String.format("Requested number of shards: <%d> needs to be a factor of the current one: <%d>",
+                    targetNumberOfShards,
+                    currentNumberOfShards));
         }
     }
 
@@ -397,10 +401,10 @@ public class AlterTableOperation {
         }
     }
 
-    private DiscoveryNode getNodeForResize() {
-        assert !clusterService.state().nodes().getDataNodes().isEmpty() : "No Data nodes available " +
-                                                                          "for index resize operation";
-        return clusterService.state().nodes().getDataNodes().valuesIt().next();
+    private static DiscoveryNode getNodeForResize(ClusterState state) {
+        assert !state.nodes().getDataNodes().isEmpty() : "No Data nodes available " +
+                                                         "for index resize operation";
+        return state.nodes().getDataNodes().valuesIt().next();
     }
 
     private CompletableFuture<Long> restrictAllocationToNode(String nodeName, String... indices) {
@@ -412,28 +416,31 @@ public class AlterTableOperation {
         request.indicesOptions(IndicesOptions.lenientExpandOpen());
 
         FutureActionListener<AcknowledgedResponse, Long> listener
-            = new FutureActionListener<>(r -> (r.isAcknowledged()) ? 0L : -1L);
+            = new FutureActionListener<>(response -> {
+                if (response.isAcknowledged()) {
+                    activeShardsObserver.waitForActiveShards(request.indices(),
+                        ActiveShardCount.ALL,
+                        request.ackTimeout(),
+                        shardsAcked -> {
+                            if (!shardsAcked && logger.isInfoEnabled()) {
+                                logger.info("[{}] indexes reallocation is in progress, " +
+                                            "but the operation timed out while waiting for " +
+                                            "enough shards to be back on green state. Timeout={}. " +
+                                            "Consider increasing the timeout or adding nodes to the cluster.",
+                                    request.indices(), request.timeout());
+                            }
+                        },
+                        e -> {
+                            throw new IllegalStateException(e);
+                        });
+                } else {
+                    logger.warn("[{}] Indexes reallocated, but publishing new cluster state timed out. Timeout={}",
+                        request.indices(), request.timeout());
+                }
+                return 0L;
+            });
 
-        transportUpdateSettingsAction.execute(request, ActionListener.wrap(response -> {
-            if (response.isAcknowledged()) {
-                activeShardsObserver.waitForActiveShards(request.indices(),
-                    ActiveShardCount.DEFAULT,
-                    request.ackTimeout(), shardsAcked -> {
-                        if (!shardsAcked && logger.isInfoEnabled()) {
-                            logger.info("[{}] indexes reallocation is in progress, " +
-                                        "but the operation timed out while waiting for " +
-                                        "enough shards to be back on green state. Timeout={}. " +
-                                        "Consider increasing the timeout or adding nodes to the cluster.",
-                                request.indices(), request.timeout());
-                        }
-                        listener.onResponse(response);
-                    }, listener::onFailure);
-            } else {
-                logger.warn("[{}] Indexes reallocated, but publishing new cluster state timed out. Timeout={}",
-                    request.indices(), request.timeout());
-                listener.onResponse(response);
-            }
-        }, listener::onFailure));
+        transportUpdateSettingsAction.execute(request, listener);
         return listener;
     }
 
@@ -441,11 +448,41 @@ public class AlterTableOperation {
         Settings settings = Settings.builder()
             .putNull(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name")
             .build();
-        return updateSettings(settings, indices);
+
+        UpdateSettingsRequest request = new UpdateSettingsRequest(settings, indices);
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+
+        FutureActionListener<AcknowledgedResponse, Long> listener
+            = new FutureActionListener<>(response -> {
+                if (response.isAcknowledged()) {
+                    activeShardsObserver.waitForActiveShards(request.indices(),
+                        ActiveShardCount.DEFAULT,
+                        request.ackTimeout(),
+                        shardsAcked -> {
+                            if (!shardsAcked && logger.isInfoEnabled()) {
+                                logger.info("[{}] indexes reallocation is in progress, " +
+                                            "but the operation timed out while waiting for " +
+                                            "enough shards to be back on green state. Timeout={}. " +
+                                            "Consider increasing the timeout or adding nodes to the cluster.",
+                                    request.indices(), request.timeout());
+                            }
+                        },
+                        e -> {
+                            throw new IllegalStateException(e);
+                        });
+                } else {
+                    logger.warn("[{}] Indexes reallocated, but publishing new cluster state timed out. Timeout={}",
+                        request.indices(), request.timeout());
+                }
+                return 0L;
+            });
+
+        transportUpdateSettingsAction.execute(request, listener);
+        return listener;
     }
 
     private CompletableFuture<Long> shrinkIndex(String sourceIndexName,
-                                                String sourceIndexAlias,
+                                                @Nullable String sourceIndexAlias,
                                                 String targetIndexName,
                                                 int targetNumberOfShards) {
         Settings targetIndexSettings = Settings.builder()
@@ -459,30 +496,33 @@ public class AlterTableOperation {
         }
         request.setResizeType(ResizeType.SHRINK);
         request.setCopySettings(Boolean.TRUE);
-        request.setWaitForActiveShards(ActiveShardCount.DEFAULT);
+        request.setWaitForActiveShards(ActiveShardCount.ALL);
 
         FutureActionListener<ResizeResponse, Long> listener
-            = new FutureActionListener<>(r -> (r.isAcknowledged()) ? 1L : -1L);
+            = new FutureActionListener<>(response -> {
+                if (response.isAcknowledged()) {
+                    activeShardsObserver.waitForActiveShards(request.getTargetIndexRequest().indices(),
+                        ActiveShardCount.ALL,
+                        request.ackTimeout(),
+                        shardsAcked -> {
+                            if (!shardsAcked && logger.isInfoEnabled()) {
+                                logger.info("[{}] indexes shrinked, but the operation timed out while waiting for " +
+                                            "enough shards to be started. Timeout={}. " +
+                                            "Consider increasing the timeout or adding nodes to the cluster.",
+                                    request.getTargetIndexRequest().indices(), request.timeout());
+                            }
+                        },
+                        e -> {
+                            throw new IllegalStateException(e);
+                        });
+                } else {
+                    logger.warn("[{}] Indexes shrinked, but publishing new cluster state timed out. Timeout={}",
+                        request.getTargetIndexRequest().indices(), request.timeout());
+                }
+                return 0L;
+            });
 
-        transportResizeAction.execute(request, ActionListener.wrap(response -> {
-            if (response.isAcknowledged()) {
-                activeShardsObserver.waitForActiveShards(request.getTargetIndexRequest().indices(),
-                                                        ActiveShardCount.DEFAULT,
-                                                        request.ackTimeout(), shardsAcked -> {
-                        if (!shardsAcked && logger.isInfoEnabled()) {
-                            logger.info("[{}] indexes shrinked, but the operation timed out while waiting for " +
-                                        "enough shards to be started. Timeout={}. " +
-                                        "Consider increasing the timeout or adding nodes to the cluster.",
-                                request.getTargetIndexRequest().indices(), request.timeout());
-                        }
-                        listener.onResponse(response);
-                    }, listener::onFailure);
-            } else {
-                logger.warn("[{}] Indexes shrinked, but publishing new cluster state timed out. Timeout={}",
-                    request.getTargetIndexRequest().indices(), request.timeout());
-                listener.onResponse(response);
-            }
-        }, listener::onFailure));
+        transportResizeAction.execute(request, listener);
         return listener;
     }
 
@@ -494,10 +534,8 @@ public class AlterTableOperation {
         return listener;
     }
 
-    private CompletableFuture<Long> renameIndices(String[] sourceIndexNames,
-                                                  String[] targetIndexNames) {
-        RenameIndexRequest request = new RenameIndexRequest(sourceIndexNames, targetIndexNames);
-        FutureActionListener<AcknowledgedResponse, Long> listener = new FutureActionListener<>(r -> -1L);
+    private CompletableFuture<Long> renameIndicesBulk(final BulkRenameIndexRequest request) {
+        FutureActionListener<AcknowledgedResponse, Long> listener = new FutureActionListener<>(r -> 0L);
         transportRenameIndexNameAction.execute(request, listener);
         return listener;
     }
@@ -886,11 +924,5 @@ public class AlterTableOperation {
             return result;
         }
 
-    }
-
-    static void ensureNotNull(Object value, String message) {
-        if (value == null) {
-            throw new IllegalArgumentException(message);
-        }
     }
 }

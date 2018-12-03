@@ -26,7 +26,6 @@ import io.crate.Constants;
 import io.crate.execution.ddl.tables.AlterTableOperation;
 import io.crate.metadata.PartitionName;
 import io.crate.metadata.RelationName;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.Index;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -91,22 +89,5 @@ class DDLClusterStateHelpers {
     static IndexTemplateMetaData templateMetaData(MetaData metaData, RelationName relationName) {
         String templateName = PartitionName.templateName(relationName.schema(), relationName.name());
         return metaData.templates().get(templateName);
-    }
-
-    static void renameIndices(MetaData metaData,
-                              MetaData.Builder mdBuilder,
-                              ClusterBlocks.Builder blocksBuilder,
-                              Index[] sourceIndices,
-                              String[] targetIndices) {
-        for (int i = 0; i < sourceIndices.length; i++) {
-            Index index = sourceIndices[i];
-            IndexMetaData indexMetaData = metaData.getIndexSafe(index);
-            IndexMetaData targetIndexMetadata = IndexMetaData.builder(indexMetaData)
-                .index(targetIndices[i]).build();
-            mdBuilder.remove(index.getName());
-            mdBuilder.put(targetIndexMetadata, true);
-            blocksBuilder.removeIndexBlocks(index.getName());
-            blocksBuilder.addBlocks(targetIndexMetadata);
-        }
     }
 }

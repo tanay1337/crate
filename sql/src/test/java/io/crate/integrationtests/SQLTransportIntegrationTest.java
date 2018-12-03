@@ -356,6 +356,7 @@ public abstract class SQLTransportIntegrationTest extends ESIntegTestCase {
      * @return the SQLResponse
      */
     public SQLResponse execute(String stmt, Object[] args) {
+        logger.info(String.format("Executing: '%s'", stmt));
         response = sqlExecutor.exec(new TestExecutionConfig(isJdbcEnabled(), isSemiJoinsEnabled(), isHashJoinEnabled()), stmt, args);
         return response;
     }

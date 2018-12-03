@@ -700,20 +700,24 @@ public class DDLIntegrationTest extends SQLTransportIntegrationTest {
     @Test
     public void testAlterShardsTable() throws Exception {
         execute("create table quotes (id integer, quote string, date timestamp) " +
-                "clustered into 3 shards with (number_of_replicas='0-all')");
+                "clustered into 3 shards");
+        ensureYellow();
 
         execute("insert into quotes (id, quote, date) values (?, ?, ?), (?, ?, ?)",
             new Object[]{
                 1, "Don't panic", 1395874800000L,
                 2, "Now panic", 1395961200000L}
         );
+
         execute("alter table quotes set (\"blocks.write\"=true)");
         execute("alter table quotes set (number_of_shards=1)");
+        assertThat(response.rowCount(), is(0L));
+        execute("alter table quotes set (\"blocks.write\"=false)");
+
         execute("select number_of_shards from information_schema.tables where table_name = 'quotes'");
         assertThat(response.rows()[0][0], is(1));
         execute("select id from quotes");
         assertThat(response.rowCount(), is(2L));
-
     }
 
     @Test
@@ -736,7 +740,8 @@ public class DDLIntegrationTest extends SQLTransportIntegrationTest {
     @Test
     public void testAlterShardsPartition() throws Exception {
         execute("create table quotes (id integer, quote string, date timestamp) " +
-                "partitioned by(date) clustered into 3 shards with (number_of_replicas='0-all')");
+                "partitioned by(date) clustered into 3 shards");
+        ensureYellow();
 
         execute("insert into quotes (id, quote, date) values (?, ?, ?), (?, ?, ?)",
             new Object[]{
@@ -744,9 +749,19 @@ public class DDLIntegrationTest extends SQLTransportIntegrationTest {
                 2, "Now panic", 1395961200000L}
         );
 
-        execute("alter table quotes partition (date=1395874800000) set (\"blocks.write\"=true)");
+        // todo: check why this solves the issue where shrinked partition data are always visible
+        // after shrink operation
+        flush("quotes");
 
+        execute("alter table quotes partition (date=1395874800000) set (\"blocks.write\"=true)");
         execute("alter table quotes partition (date=1395874800000) set (number_of_shards=1)");
+        assertThat(response.rowCount(), is(0L));
+        execute("alter table quotes partition (date=1395874800000) set (\"blocks.write\"=false)");
+
+        // todo: check why this solves the issue where shrinked partition data are always visible
+        // after shrink operation - workaround no 2
+        //refresh("quotes");
+
         execute("select number_of_shards from information_schema.table_partitions " +
                 "where table_name = 'quotes' " +
                 "and values = '{\"date\": 1395874800000}'");

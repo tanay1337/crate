@@ -22,69 +22,54 @@
 
 package io.crate.metadata.cluster;
 
-import io.crate.execution.ddl.index.RenameIndexRequest;
+import io.crate.execution.ddl.index.BulkRenameIndexRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 
-import static io.crate.metadata.cluster.DDLClusterStateHelpers.renameIndices;
-
-public class RenameIndexClusterStateExecutor extends DDLClusterStateTaskExecutor<RenameIndexRequest> {
-
-    private static final IndicesOptions STRICT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, false);
-
+public class RenameIndexClusterStateExecutor extends DDLClusterStateTaskExecutor<BulkRenameIndexRequest> {
 
     private final Logger logger;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public RenameIndexClusterStateExecutor(Settings settings,
-                                           IndexNameExpressionResolver indexNameExpressionResolver) {
+    public RenameIndexClusterStateExecutor() {
         logger = LogManager.getLogger(getClass());
-
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState, RenameIndexRequest request) throws Exception {
-        final String[] sourceIndexName = request.sourceIndexName();
-        final String[] targetIndexName = request.targetIndexName();
+    public ClusterState execute(ClusterState currentState, BulkRenameIndexRequest request) throws Exception {
 
-        logger.info("rename indexes '[{}]' to '[{}]'", sourceIndexName, targetIndexName);
+        final String[] sourceIndexNames = request.sourceIndices();
+        final String[] targetIndexNames = request.targetIndices();
 
+        logger.info("rename indexes '[{}]' to '[{}]'", sourceIndexNames, targetIndexNames);
         MetaData.Builder mdBuilder = null;
         ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
             .blocks(currentState.blocks());
 
-        Index[] sourceIndices = indexNameExpressionResolver.concreteIndices(currentState,
-            STRICT_INDICES_OPTIONS, sourceIndexName);
-        Index[] sourceIndicesOrdered = new Index[sourceIndexName.length];
-
-        // ensure the order in input is respected
-        for (int i = 0; i < sourceIndexName.length; i++) {
-            for (int j = 0; j < sourceIndices.length; j++) {
-                if (sourceIndexName[i].equals(sourceIndices[j].getName())) {
-                    sourceIndicesOrdered[i] = sourceIndices[j];
-                    break;
-                }
-            }
-        }
-
         MetaData metaData = currentState.getMetaData();
         mdBuilder = MetaData.builder(metaData);
 
-        renameIndices(metaData, mdBuilder, blocksBuilder, sourceIndicesOrdered, targetIndexName);
+        renameIndices(metaData, mdBuilder, blocksBuilder, sourceIndexNames, targetIndexNames);
+        return ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
+    }
 
-        // The MetaData will always be overridden (and not merged!) when applying it on a cluster state builder.
-        // So we must re-build the state with the latest modifications before we pass this state to possible modifiers
-        // or return it.
-        // Otherwise they would operate on the old MetaData and would just ignore any modifications.
-        currentState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
-        return currentState;
+    static void renameIndices(MetaData metaData,
+                              MetaData.Builder mdBuilder,
+                              ClusterBlocks.Builder blocksBuilder,
+                              String[] sourceIndexNames,
+                              String[] targetIndexNames) {
+        for (int i = 0; i < sourceIndexNames.length; i++) {
+            String sourceIndex = sourceIndexNames[i];
+            IndexMetaData indexMetaData = metaData.index(sourceIndex);
+            IndexMetaData targetIndexMetadata = IndexMetaData.builder(indexMetaData)
+                .index(targetIndexNames[i]).build();
+            mdBuilder.remove(sourceIndex);
+            mdBuilder.put(targetIndexMetadata, true);
+            blocksBuilder.removeIndexBlocks(sourceIndex);
+            blocksBuilder.addBlocks(targetIndexMetadata);
+        }
     }
 }
