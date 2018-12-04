@@ -39,6 +39,7 @@ import io.crate.concurrent.CompletableFutures;
 import io.crate.concurrent.MultiBiConsumer;
 import io.crate.data.Row;
 import io.crate.execution.ddl.index.BulkRenameIndexRequest;
+import io.crate.execution.ddl.index.BulkRenameIndexRequest.RenameIndexAction;
 import io.crate.execution.ddl.index.TransportRenameIndexNameAction;
 import io.crate.execution.support.ChainableAction;
 import io.crate.execution.support.ChainableActions;
@@ -327,16 +328,17 @@ public class AlterTableOperation {
         // index rename
         final String backupIndexName = BACKUP_PREFIX + sourceIndexName;
 
-        BulkRenameIndexRequest bulkRenameRequest = new BulkRenameIndexRequest(2);
-        bulkRenameRequest.addRenameIndexAction(sourceIndexName, backupIndexName);
-        bulkRenameRequest.addRenameIndexAction(targetIndexName, sourceIndexName);
+        List<RenameIndexAction> renameIndexActionList = new ArrayList<>(2);
+        renameIndexActionList.add(new RenameIndexAction(sourceIndexName, backupIndexName));
+        renameIndexActionList.add(new RenameIndexAction(targetIndexName, sourceIndexName));
 
-        BulkRenameIndexRequest bulkReverseRenameRequest = new BulkRenameIndexRequest(2);
-        bulkReverseRenameRequest.addRenameIndexAction(sourceIndexName, targetIndexName);
-        bulkReverseRenameRequest.addRenameIndexAction(backupIndexName, sourceIndexName);
+        List<RenameIndexAction> revertRenameIndexActionList = new ArrayList<>(2);
+        revertRenameIndexActionList.add(new RenameIndexAction(sourceIndexName, targetIndexName));
+        revertRenameIndexActionList.add(new RenameIndexAction(backupIndexName, sourceIndexName));
+
         actions.add(new ChainableAction<>(
-            () -> renameIndicesBulk(bulkRenameRequest),
-            () -> renameIndicesBulk(bulkReverseRenameRequest)
+            () -> renameIndicesBulk(renameIndexActionList),
+            () -> renameIndicesBulk(revertRenameIndexActionList)
         ));
 
         // open index
@@ -534,7 +536,8 @@ public class AlterTableOperation {
         return listener;
     }
 
-    private CompletableFuture<Long> renameIndicesBulk(final BulkRenameIndexRequest request) {
+    private CompletableFuture<Long> renameIndicesBulk(final List<RenameIndexAction> renameIndexActions) {
+        BulkRenameIndexRequest request = new BulkRenameIndexRequest(renameIndexActions);
         FutureActionListener<AcknowledgedResponse, Long> listener = new FutureActionListener<>(r -> 0L);
         transportRenameIndexNameAction.execute(request, listener);
         return listener;

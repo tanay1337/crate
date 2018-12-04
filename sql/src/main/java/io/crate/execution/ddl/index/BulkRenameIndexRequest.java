@@ -37,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class BulkRenameIndexRequest extends AcknowledgedRequest<BulkRenameIndexRequest> {
 
-    public class RenameIndexAction {
+    public static class RenameIndexAction {
 
         private final String sourceIndexName;
         private final String targetIndexName;
@@ -53,27 +53,27 @@ public class BulkRenameIndexRequest extends AcknowledgedRequest<BulkRenameIndexR
             }
         }
 
-        @Nonnull String sourceIndexName() {
+        public @Nonnull String sourceIndexName() {
             return sourceIndexName;
         }
 
-        @Nonnull String targetIndexName() {
+        public @Nonnull String targetIndexName() {
             return targetIndexName;
         }
     }
 
     private List<RenameIndexAction> renameIndexActions;
 
-    public BulkRenameIndexRequest(int initialNumberOfRenameRequests) {
-        this.renameIndexActions = new ArrayList<>(initialNumberOfRenameRequests);
-    }
-
     BulkRenameIndexRequest() {
-        this(3);
+        this.renameIndexActions = new ArrayList<>();
     }
 
-    public void addRenameIndexAction(@Nonnull String sourceIndex,
-                                     @Nonnull String targetIndex) {
+    public BulkRenameIndexRequest(List<RenameIndexAction> renameIndexActions) {
+        this.renameIndexActions = renameIndexActions;
+    }
+
+    private void addRenameIndexAction(@Nonnull String sourceIndex,
+                                      @Nonnull String targetIndex) {
         renameIndexActions.add(new RenameIndexAction(sourceIndex, targetIndex));
     }
 
@@ -88,20 +88,6 @@ public class BulkRenameIndexRequest extends AcknowledgedRequest<BulkRenameIndexR
 
     public List<RenameIndexAction> renameIndexActions() {
         return renameIndexActions;
-    }
-
-    public String[] sourceIndices() {
-        return renameIndexActions
-            .stream()
-            .map(RenameIndexAction::sourceIndexName)
-            .toArray(String[]::new);
-    }
-
-    public String[] targetIndices() {
-        return renameIndexActions
-            .stream()
-            .map(RenameIndexAction::targetIndexName)
-            .toArray(String[]::new);
     }
 
     @Override

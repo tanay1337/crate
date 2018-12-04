@@ -65,6 +65,11 @@ public class TransportRenameIndexNameAction extends AbstractDDLTransportAction<B
 
     @Override
     protected ClusterBlockException checkBlock(BulkRenameIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, request.sourceIndices());
+        String[] sourceIndices = request
+            .renameIndexActions()
+            .stream()
+            .map(BulkRenameIndexRequest.RenameIndexAction::sourceIndexName)
+            .toArray(String[]::new);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, sourceIndices);
     }
 }
