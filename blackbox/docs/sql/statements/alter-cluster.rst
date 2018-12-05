@@ -58,10 +58,10 @@ get acknowledged.
 
 ::
 
-      SWAP TABLE first TO second [ WITH ( expr = expr [ , ... ] ) ]
+      SWAP TABLE source TO target [ WITH ( expr = expr [ , ... ] ) ]
 
-This command swaps two tables. ``first`` will be renamed to ``second`` and
-``second`` will be renamed to ``first``.
+This command swaps two tables. ``source`` will be renamed to ``target`` and
+``target`` will be renamed to ``source``.
 
 An example use case of this feature is some sort of schema migration using
 ``INSERT INTO ... query``. You'd create a new table with an updated schema,
@@ -73,8 +73,9 @@ Options
 .......
 
 
-**prune_second**
+**prune_source**
    | *Default*: ``false``
 
    A boolean option that if set to ``true`` causes the command to remove the
-   *original* ``second`` table.
+   ``source`` table after the rename. This causes the command to *replace*
+   ``target`` with ``source``, instead of swapping the names.
