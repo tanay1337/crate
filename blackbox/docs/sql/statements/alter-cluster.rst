@@ -19,6 +19,7 @@ Synopsis
 
     ALTER CLUSTER
       { REROUTE RETRY FAILED }
+      | { SWAP TABLE source TO target [ WITH ( expr = expr [ , ... ] ) ] }
 
 
 Description
@@ -50,3 +51,30 @@ get acknowledged.
     Additionally, keep in mind that this statement only triggers the shard
     re-allocation and is therefore asynchronous. Unassigned shards with large
     size will take some time to allocate.
+
+
+``SWAP TABLE``
+--------------
+
+::
+
+      SWAP TABLE first TO second [ WITH ( expr = expr [ , ... ] ) ]
+
+This command swaps two tables. ``first`` will be renamed to ``second`` and
+``second`` will be renamed to ``first``.
+
+An example use case of this feature is some sort of schema migration using
+``INSERT INTO ... query``. You'd create a new table with an updated schema,
+copy over the data from the old table and then replace the old table with the
+new table.
+
+
+Options
+.......
+
+
+**prune_second**
+   | *Default*: ``false``
+
+   A boolean option that if set to ``true`` causes the command to remove the
+   *original* ``second`` table.
